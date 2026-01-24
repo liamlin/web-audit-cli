@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="{{language}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{t "report.title"}} - {{url}}</title>
+  <style>
+    /*
+     * Slide-Like Presentation CSS
+     * Professional & Modern design with scroll-snap navigation
+     */
+
+    /* Color Palette */
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc;
+      --bg-tertiary: #f1f5f9;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent: #2563eb;
+      --accent-light: #dbeafe;
+      --success: #16a34a;
+      --success-light: #dcfce7;
+      --warning: #ca8a04;
+      --warning-light: #fef9c3;
+      --danger: #dc2626;
+      --danger-light: #fee2e2;
+      --orange: #ea580c;
+      --orange-light: #ffedd5;
+      --info: #6366f1;
+      --info-light: #e0e7ff;
+      --border: #e2e8f0;
+      --category-bg: #f1f5f9;
+      --category-text: #475569;
+    }
+
+    /* Reset */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text-primary);
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg-primary);
+    }
+
+    /* Slide Container */
+    .slides {
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    .slide {
+      min-height: 100vh;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 4rem 6rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .slide-content {
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Progress Bar */
+    #progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      transition: width 0.3s ease;
+      z-index: 100;
+      width: 0%;
+    }
+
+    /* Typography */
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    h2 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 0.75rem;
+      margin-bottom: 2rem;
+    }
+
+    h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    /* Title Slide */
+    .title-slide {
+      text-align: center;
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+    }
+
+    .title-slide .icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 2rem;
+      color: var(--text-muted);
+    }
+
+    .title-slide h1 {
+      font-size: 3.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .title-slide .url {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      word-break: break-all;
+      margin-bottom: 3rem;
+    }
+
+    .title-slide .date {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 3rem;
+    }
+
+    /* Score and Stats Combined Section */
+    .scores-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .score-card {
+      background: var(--bg-secondary);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .score-card .score {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .score-card .label {
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    .score-card .desc {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Issue Count Summary */
+    .issue-counts {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-top: 2rem;
+      padding: 1.25rem;
+      background: var(--bg-tertiary);
+      border-radius: 0.75rem;
+    }
+
+    .issue-count-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .issue-count-item .count {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .issue-count-item .label {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .issue-count-item.critical .count,
+    .issue-count-item.critical .label { color: var(--danger); }
+    .issue-count-item.high .count,
+    .issue-count-item.high .label { color: var(--orange); }
+    .issue-count-item.medium .count,
+    .issue-count-item.medium .label { color: var(--warning); }
+
+    /* Score Colors */
+    .score-good { color: var(--success); }
+    .score-medium { color: var(--warning); }
+    .score-poor { color: var(--danger); }
+
+    /* Executive Summary */
+    .summary-text {
+      font-size: 1.125rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+    }
+
+    /* Methodology Section */
+    .methodology-slide {
+      background: var(--bg-secondary);
+    }
+
+    .tool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .tool-item {
+      background: var(--bg-primary);
+      border-radius: 0.75rem;
+      padding: 1.25rem 1.5rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .tool-item .name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .tool-item .version {
+      font-weight: 400;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-left: 0.5rem;
+    }
+
+    .tool-item .purpose {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+    }
+
+    .tool-item .credibility {
+      font-size: 0.8125rem;
+      color: var(--accent);
+      margin-top: 0.5rem;
+    }
+
+    .test-conditions {
+      background: var(--warning-light);
+      border-radius: 0.75rem;
+      padding: 1.25rem 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .test-conditions .label {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .test-conditions .value {
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+
+    .test-conditions .note {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    /* Priority Actions */
+    .priority-list {
+      list-style: none;
+      counter-reset: priority;
+    }
+
+    .priority-list li {
+      counter-increment: priority;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: var(--bg-secondary);
+      border-radius: 0.75rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.6;
+    }
+
+    .priority-list li::before {
+      content: counter(priority);
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    /* Issue Cards - Table-based layout with field labels */
+    .issues-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .issue-card {
+      background: var(--bg-primary);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border-left: 4px solid var(--border);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .issue-card.severity-critical { border-left-color: var(--danger); background: var(--danger-light); }
+    .issue-card.severity-high { border-left-color: var(--orange); background: var(--orange-light); }
+    .issue-card.severity-medium { border-left-color: var(--warning); background: var(--warning-light); }
+    .issue-card.severity-low { border-left-color: var(--success); background: var(--success-light); }
+    .issue-card.severity-info { border-left-color: var(--info); background: var(--info-light); }
+
+    .issue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+      gap: 1rem;
+    }
+
+    .issue-header-left {
+      flex: 1;
+    }
+
+    .issue-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .issue-desc {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+    }
+
+    .severity-badge {
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.75rem;
+      border-radius: 1rem;
+      color: white;
+    }
+
+    .severity-badge.critical { background: var(--danger); }
+    .severity-badge.high { background: var(--orange); }
+    .severity-badge.medium { background: var(--warning); }
+    .severity-badge.low { background: var(--success); }
+    .severity-badge.info { background: var(--info); }
+
+    /* Issue Table */
+    .issue-table {
+      width: 100%;
+      font-size: 0.9375rem;
+      border-collapse: collapse;
+    }
+
+    .issue-table td {
+      padding: 0.5rem 0;
+      vertical-align: top;
+    }
+
+    .issue-table td:first-child {
+      font-weight: 500;
+      width: 9rem;
+      color: var(--text-secondary);
+    }
+
+    .issue-table td:last-child {
+      color: var(--text-primary);
+    }
+
+
+    .affected-url-link {
+      color: var(--accent);
+      word-break: break-all;
+    }
+
+    /* No Issues */
+    .no-issues {
+      text-align: center;
+      padding: 3rem;
+      background: var(--success-light);
+      border-radius: 1rem;
+    }
+
+    .no-issues .icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .no-issues h3 {
+      color: var(--success);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Scrollable Issue Slide */
+    .issues-slide {
+      min-height: 100vh;
+      height: auto;
+      scroll-snap-align: start;
+      padding-top: 4rem;
+      padding-bottom: 4rem;
+    }
+
+    .issues-scroll {
+      max-height: none;
+      overflow: visible;
+    }
+
+    /* Print / PDF Styles */
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+
+    @media print {
+      .slides {
+        height: auto;
+        overflow: visible;
+        scroll-snap-type: none;
+      }
+
+      .slide {
+        min-height: auto;
+        page-break-after: always;
+        padding: 2rem;
+        break-after: page;
+      }
+
+      .slide:last-child {
+        page-break-after: avoid;
+      }
+
+      #progress {
+        display: none !important;
+      }
+
+      /* Prevent orphans/widows */
+      p, li {
+        orphans: 3;
+        widows: 3;
+      }
+
+      /* Keep cards together */
+      .issue-card,
+      .score-card,
+      .tool-item {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      /* Headers stay with content */
+      h2, h3 {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+
+      .issues-slide {
+        page-break-before: always;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .slide {
+        padding: 2rem 1.5rem;
+      }
+
+      h1 { font-size: 2rem; }
+      h2 { font-size: 1.5rem; }
+
+      .scores-stats-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      .issue-counts {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: center;
+      }
+
+      .title-slide h1 {
+        font-size: 2.5rem;
+      }
+
+      .issue-table td:first-child {
+        width: 7rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Progress Bar -->
+  <div id="progress"></div>
+
+  <div class="slides" id="slides">
+
+    <!-- Slide 1: Title -->
+    <section class="slide title-slide">
+      <div class="slide-content">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        <h1>{{t "report.title"}}</h1>
+        <p class="url">{{url}}</p>
+        <p class="date">{{t "report.generatedOn"}} {{formatDate generatedAt}}</p>
+      </div>
+    </section>
+
+    <!-- Slide 2: Category Scores + Issue Summary -->
+    <section class="slide">
+      <div class="slide-content">
+        <h2>{{t "report.executiveSummary"}}</h2>
+        <p class="summary-text">{{executiveSummary}}</p>
+
+        <div class="scores-stats-grid">
+          {{#if (isNotNull categoryScores.seo)}}
+          <div class="score-card">
+            <div class="score {{scoreColor categoryScores.seo}}">{{categoryScores.seo}}</div>
+            <div class="label">{{t "category.seo"}}</div>
+            <div class="desc">{{t "category.seoDesc"}}</div>
+          </div>
+          {{/if}}
+          {{#if (isNotNull categoryScores.performance)}}
+          <div class="score-card">
+            <div class="score {{scoreColor categoryScores.performance}}">{{categoryScores.performance}}</div>
+            <div class="label">{{t "category.performance"}}</div>
+            <div class="desc">{{t "category.performanceDesc"}}</div>
+          </div>
+          {{/if}}
+          {{#if (isNotNull categoryScores.security)}}
+          <div class="score-card">
+            <div class="score {{scoreColor categoryScores.security}}">{{categoryScores.security}}</div>
+            <div class="label">{{t "category.security"}}</div>
+            <div class="desc">{{t "category.securityDesc"}}</div>
+          </div>
+          {{/if}}
+        </div>
+
+        <!-- Issue Counts Summary -->
+        <div class="issue-counts">
+          <div class="issue-count-item critical">
+            <span class="count">{{countBySeverity issues 'CRITICAL'}}</span>
+            <span class="label">{{t "severity.critical"}}</span>
+          </div>
+          <div class="issue-count-item high">
+            <span class="count">{{countBySeverity issues 'HIGH'}}</span>
+            <span class="label">{{t "severity.high"}}</span>
+          </div>
+          <div class="issue-count-item medium">
+            <span class="count">{{countBySeverity issues 'MEDIUM'}}</span>
+            <span class="label">{{t "severity.medium"}}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3: Methodology -->
+    <section class="slide methodology-slide">
+      <div class="slide-content">
+        <h2>{{t "methodology.title"}}</h2>
+        <p>{{t "methodology.toolsDesc"}}</p>
+
+        <div class="tool-list">
+          {{#each methodology.toolsUsed}}
+          <div class="tool-item">
+            <span class="name">{{name}}</span>
+            <span class="version">v{{version}}</span>
+            <p class="purpose">{{purpose}}</p>
+            <p class="credibility">{{credibility}}</p>
+          </div>
+          {{/each}}
+        </div>
+
+        {{#if methodology.performanceTestSpec}}
+        <div class="test-conditions">
+          <div class="label">{{t "methodology.testConditions"}}</div>
+          <div class="value">{{methodology.performanceTestSpec}}</div>
+          <div class="note">{{t "methodology.testConditionsNote"}}</div>
+        </div>
+        {{/if}}
+      </div>
+    </section>
+
+    <!-- Slide 4: Priority Actions -->
+    <section class="slide">
+      <div class="slide-content">
+        <h2>{{t "report.priorityActions"}}</h2>
+        <p>{{t "report.priorityActionsDesc"}}</p>
+
+        <ol class="priority-list">
+          {{#each prioritizedRecommendations}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ol>
+      </div>
+    </section>
+
+    <!-- Slide 5+: Detailed Issues -->
+    <section class="slide issues-slide">
+      <div class="slide-content">
+        <h2>{{t "report.detailedAnalysis"}}</h2>
+        <p>{{t "report.detailedAnalysisDesc" count=issues.length}}</p>
+
+        {{#if issues.length}}
+        <div class="issues-container issues-scroll">
+          {{#each issues}}
+          <div class="issue-card severity-{{lowercase severity}}">
+            <div class="issue-header">
+              <div class="issue-header-left">
+                <h3 class="issue-title">{{title}}</h3>
+                <p class="issue-desc">{{description}}</p>
+              </div>
+              <span class="severity-badge {{lowercase severity}}">{{severityLabel severity}}</span>
+            </div>
+
+            <table class="issue-table">
+              <tr>
+                <td>{{t "issue.category"}}</td>
+                <td>{{categoryName category}}</td>
+              </tr>
+              <tr>
+                <td>{{t "issue.businessImpact"}}</td>
+                <td>{{businessImpact}}</td>
+              </tr>
+              <tr>
+                <td>{{t "issue.expectedOutcome"}}</td>
+                <td>{{expectedOutcome}}</td>
+              </tr>
+              <tr>
+                <td>{{t "issue.fixDifficulty"}}</td>
+                <td>{{difficultyLabel fixDifficulty}}</td>
+              </tr>
+              <tr>
+                <td>{{t "issue.recommendation"}}</td>
+                <td>{{suggestion}}</td>
+              </tr>
+              {{#if affectedUrl}}
+              <tr>
+                <td>{{t "issue.affectedUrl"}}</td>
+                <td><span class="affected-url-link">{{affectedUrl}}</span></td>
+              </tr>
+              {{/if}}
+            </table>
+          </div>
+          {{/each}}
+        </div>
+        {{else}}
+        <div class="no-issues">
+          <div class="icon">✓</div>
+          <h3>{{t "report.noIssues"}}</h3>
+          <p>{{t "report.noIssuesDesc"}}</p>
+        </div>
+        {{/if}}
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Progress Bar Script (scroll-based only, no keyboard navigation) -->
+  <script>
+    (function() {
+      var progress = document.getElementById('progress');
+      var slidesContainer = document.getElementById('slides');
+
+      function updateProgress() {
+        var scrollTop = slidesContainer.scrollTop;
+        var maxScroll = slidesContainer.scrollHeight - slidesContainer.clientHeight;
+        var percent = maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0;
+        progress.style.width = percent + '%';
+      }
+
+      slidesContainer.addEventListener('scroll', updateProgress);
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>

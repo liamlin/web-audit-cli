@@ -1,0 +1,57 @@
+{
+  "site": [
+    {
+      "alerts": [
+        {
+          "pluginId": "10035",
+          "name": "Strict-Transport-Security Header Not Set",
+          "riskcode": 2,
+          "confidence": 2,
+          "description": "<p>HTTP Strict Transport Security (HSTS) is a web security policy mechanism whereby a web server declares that complying user agents (such as a web browser) are to interact with it using only secure HTTPS connections.</p>",
+          "solution": "<p>Ensure that your web server, application server, load balancer, etc. is configured to enforce Strict-Transport-Security.</p>",
+          "uri": "https://example.com/",
+          "reference": "https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html"
+        },
+        {
+          "pluginId": "10038",
+          "name": "Content Security Policy (CSP) Header Not Set",
+          "riskcode": 2,
+          "confidence": 3,
+          "description": "<p>Content Security Policy (CSP) is an added layer of security that helps to detect and mitigate certain types of attacks, including Cross Site Scripting (XSS) and data injection attacks.</p>",
+          "solution": "<p>Ensure that your web server, application server, load balancer, etc. is configured to set the Content-Security-Policy header.</p>",
+          "uri": "https://example.com/login",
+          "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP"
+        },
+        {
+          "pluginId": "10020",
+          "name": "X-Frame-Options Header Not Set",
+          "riskcode": 2,
+          "confidence": 2,
+          "description": "<p>X-Frame-Options header is not included in the HTTP response to protect against 'ClickJacking' attacks.</p>",
+          "solution": "<p>Most modern Web browsers support the X-Frame-Options HTTP header. Ensure it's set on all web pages returned by your site.</p>",
+          "uri": "https://example.com/dashboard",
+          "reference": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options"
+        },
+        {
+          "pluginId": "90033",
+          "name": "Loosely Scoped Cookie",
+          "riskcode": 1,
+          "confidence": 2,
+          "description": "<p>Cookies can be scoped by domain or path. This check is only concerned with domain scope.</p>",
+          "solution": "<p>Always scope cookies to a FQDN (Fully Qualified Domain Name).</p>",
+          "uri": "https://example.com/api/session",
+          "other": "The origin domain used for comparison was: example.com"
+        },
+        {
+          "pluginId": "10096",
+          "name": "Timestamp Disclosure - Unix",
+          "riskcode": 0,
+          "confidence": 2,
+          "description": "<p>A timestamp was disclosed by the application/web server - Unix</p>",
+          "solution": "<p>Manually confirm that the timestamp data is not sensitive, and that the data cannot be aggregated to disclose exploitable patterns.</p>",
+          "uri": "https://example.com/api/data"
+        }
+      ]
+    }
+  ]
+}

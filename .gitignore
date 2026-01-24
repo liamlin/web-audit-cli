@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Temporary files
+temp/
+.tmp/
+
+# Reports output (optional - users may want to commit these)
+reports/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+
+# ZAP temporary files (only in root, not test fixtures)
+/zap-report.json
+/zap-config.yaml
+
+# Crawlee storage (cache)
+storage/
+
+# Dead code analysis
+.reports/
+
+# Personal development notes
+.notes/
+

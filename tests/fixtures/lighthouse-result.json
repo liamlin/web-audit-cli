@@ -1,0 +1,83 @@
+{
+  "lhr": {
+    "categories": {
+      "performance": {
+        "score": 0.65
+      }
+    },
+    "audits": {
+      "largest-contentful-paint": {
+        "id": "largest-contentful-paint",
+        "title": "Largest Contentful Paint",
+        "numericValue": 4500,
+        "displayValue": "4.5 s"
+      },
+      "cumulative-layout-shift": {
+        "id": "cumulative-layout-shift",
+        "title": "Cumulative Layout Shift",
+        "numericValue": 0.35,
+        "displayValue": "0.35"
+      },
+      "total-blocking-time": {
+        "id": "total-blocking-time",
+        "title": "Total Blocking Time",
+        "numericValue": 750,
+        "displayValue": "750 ms"
+      },
+      "first-contentful-paint": {
+        "id": "first-contentful-paint",
+        "title": "First Contentful Paint",
+        "numericValue": 2000,
+        "displayValue": "2.0 s"
+      },
+      "speed-index": {
+        "id": "speed-index",
+        "title": "Speed Index",
+        "numericValue": 4000,
+        "displayValue": "4.0 s"
+      },
+      "unused-javascript": {
+        "id": "unused-javascript",
+        "title": "Reduce unused JavaScript",
+        "score": 0.5,
+        "description": "Reduce unused JavaScript and defer loading scripts until they are required.",
+        "displayValue": "Potential savings of 200 KB",
+        "details": {
+          "type": "opportunity",
+          "overallSavingsMs": 350
+        }
+      },
+      "offscreen-images": {
+        "id": "offscreen-images",
+        "title": "Defer offscreen images",
+        "score": 0.7,
+        "description": "Consider lazy-loading offscreen and hidden images.",
+        "displayValue": "Potential savings of 50 KB",
+        "details": {
+          "type": "opportunity",
+          "overallSavingsMs": 150
+        }
+      },
+      "render-blocking-resources": {
+        "id": "render-blocking-resources",
+        "title": "Eliminate render-blocking resources",
+        "score": 0.6,
+        "description": "Resources are blocking the first paint of your page.",
+        "displayValue": "Potential savings of 300 ms",
+        "details": {
+          "type": "opportunity",
+          "overallSavingsMs": 600
+        }
+      },
+      "uses-long-cache-ttl": {
+        "id": "uses-long-cache-ttl",
+        "title": "Serve static assets with an efficient cache policy",
+        "score": 1,
+        "description": "A long cache lifetime can speed up repeat visits to your page.",
+        "details": {
+          "type": "table"
+        }
+      }
+    }
+  }
+}
