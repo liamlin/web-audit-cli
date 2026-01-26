@@ -82,8 +82,13 @@ export async function runLighthouse(
   } finally {
     // CRITICAL: Always kill Chrome to prevent zombie processes
     if (chrome) {
-      logDebug('Killing Chrome...');
-      await chrome.kill();
+      try {
+        logDebug('Killing Chrome...');
+        await chrome.kill();
+      } catch (killError) {
+        // Log but don't throw - we still need to release the mutex
+        logDebug(`Warning: Failed to kill Chrome: ${killError}`);
+      }
     }
 
     lighthouseMutex.release();

@@ -108,8 +108,8 @@ export class SeoAuditor extends BaseAuditor {
       const baseUrl = new URL(url);
 
       // Run Lighthouse SEO audits if Chrome is available
-      const lighthouseIssues = await this.runLighthouseSeoAudits(url);
-      this.issues.push(...lighthouseIssues);
+      const lighthouseResult = await this.runLighthouseSeoAudits(url);
+      this.issues.push(...lighthouseResult.issues);
 
       // Run sitemap validation
       const sitemapIssues = await this.runSitemapValidation(baseUrl.origin);
@@ -136,7 +136,7 @@ export class SeoAuditor extends BaseAuditor {
         metadata: {
           pagesAudited: this.crawledUrls.size,
           brokenLinksFound: this.brokenLinks.size,
-          lighthouseAuditsRun: lighthouseIssues.length > 0 || this.warnings.length === 0,
+          lighthouseAuditsRun: lighthouseResult.didRun,
         },
       };
 
@@ -150,8 +150,11 @@ export class SeoAuditor extends BaseAuditor {
 
   /**
    * Run Lighthouse SEO audits.
+   * Returns both the issues found and whether Lighthouse actually ran.
    */
-  private async runLighthouseSeoAudits(url: string): Promise<AuditIssue[]> {
+  private async runLighthouseSeoAudits(
+    url: string
+  ): Promise<{ issues: AuditIssue[]; didRun: boolean }> {
     const issues: AuditIssue[] = [];
 
     // Check if Chrome is available
@@ -160,7 +163,7 @@ export class SeoAuditor extends BaseAuditor {
       const instructions = getChromeInstallInstructions();
       this.warnings.push(`Chrome not installed, Lighthouse SEO audits skipped. ${instructions}`);
       logDebug('Chrome not installed, skipping Lighthouse SEO audits');
-      return issues;
+      return { issues, didRun: false };
     }
 
     try {
@@ -200,7 +203,7 @@ export class SeoAuditor extends BaseAuditor {
 
       if (!lhr) {
         this.warnings.push('Lighthouse did not return SEO results');
-        return issues;
+        return { issues, didRun: false };
       }
 
       // Extract failed SEO audits
@@ -208,13 +211,13 @@ export class SeoAuditor extends BaseAuditor {
       issues.push(...extractedIssues);
 
       logDebug(`Lighthouse SEO audits found ${issues.length} issues`);
+      return { issues, didRun: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.warnings.push(`Lighthouse SEO audit error: ${message}`);
       logDebug(`Lighthouse SEO audit error: ${message}`);
+      return { issues, didRun: false };
     }
-
-    return issues;
   }
 
   /**
@@ -230,8 +233,11 @@ export class SeoAuditor extends BaseAuditor {
         continue;
       }
 
-      // Check if the audit failed (score < 1 or score is null and it's not informative)
-      const failed = audit.score !== null && audit.score < 1;
+      // Check if the audit failed:
+      // - score < 1 means failed or needs improvement
+      // - scoreDisplayMode === 'error' means the audit errored during execution
+      const failed =
+        (audit.score !== null && audit.score < 1) || audit.scoreDisplayMode === 'error';
       if (!failed) {
         continue;
       }

@@ -48,6 +48,28 @@ const W3C_DATETIME_PATTERN =
  * Validate a sitemap URL.
  */
 export async function validateSitemap(sitemapUrl: string): Promise<SitemapValidationResult> {
+  // Defense-in-depth: Validate URL format and protocol
+  // (Primary validation happens in CLI config, but this protects against misuse)
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(sitemapUrl);
+  } catch {
+    return {
+      found: false,
+      valid: false,
+      fetchError: 'Invalid URL format',
+    };
+  }
+
+  // Only allow http/https protocols to prevent file:// or other protocol attacks
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return {
+      found: false,
+      valid: false,
+      fetchError: 'Only HTTP and HTTPS protocols are allowed',
+    };
+  }
+
   let response: Response;
 
   try {
