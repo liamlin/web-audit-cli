@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Runtime**: Node.js v20+ LTS (enforced at runtime)
 - **Language**: TypeScript v5.x (strict mode, ES2022 target, NodeNext module)
 - **CLI**: Commander.js + Inquirer.js + ora + chalk
-- **SEO Engine**: Crawlee (CheerioCrawler)
+- **SEO Engine**: Lighthouse SEO audits + Crawlee (broken links) + sitemap.xml validator
 - **Performance Engine**: Lighthouse v12 + chrome-launcher (requires Chrome/Chromium)
 - **Security Engine**: OWASP ZAP via Docker (requires Docker)
 - **Reporting**: Handlebars + Puppeteer (PDF generation)
@@ -22,11 +22,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The CLI checks for required dependencies at startup and provides helpful feedback:
 
-| Dependency      | Required For       | Behavior if Missing                       |
-| --------------- | ------------------ | ----------------------------------------- |
-| Node.js 20+     | All modules        | Exits with error and install instructions |
-| Chrome/Chromium | Performance module | Module skipped with warning               |
-| Docker          | Security module    | Module skipped with warning               |
+| Dependency      | Required For      | Behavior if Missing                       |
+| --------------- | ----------------- | ----------------------------------------- |
+| Node.js 20+     | All modules       | Exits with error and install instructions |
+| Chrome/Chromium | SEO + Performance | Module skipped with warning               |
+| Docker          | Security module   | Module skipped with warning               |
 
 In **verbose mode** (`--verbose`), the CLI displays an environment summary showing the status of all dependencies before running the audit.
 
@@ -79,8 +79,8 @@ Orchestrator (sequential execution, fault-tolerant)
     ↓
 ┌─────────────┬─────────────┬─────────────┐
 │ SeoAuditor  │ Performance │ Security    │
-│ (Crawlee)   │ Auditor     │ Auditor     │
-│             │ (Lighthouse)│ (ZAP/Docker)│
+│ (Lighthouse │ Auditor     │ Auditor     │
+│ + Crawlee)  │ (Lighthouse)│ (ZAP/Docker)│
 └──────┬──────┴──────┬──────┴──────┬──────┘
        │             │             │
        └─────────────┼─────────────┘
@@ -101,7 +101,7 @@ Orchestrator (sequential execution, fault-tolerant)
 - `src/core/matrix-engine.ts` - Transforms technical issues to business language, generates methodology
 - `src/core/knowledge-base.ts` - Maps issue IDs to localized business impact descriptions (zh-TW/en)
 - `src/utils/i18n.ts` - Translation system for report strings
-- `src/modules/seo/` - Crawlee-based crawler checking broken links, meta tags, H1s, canonicals
+- `src/modules/seo/` - Lighthouse SEO audits (crawlability, meta, canonicals, robots.txt), sitemap.xml validation, Crawlee broken link detection
 - `src/modules/performance/` - Lighthouse integration for Core Web Vitals (LCP, CLS, TBT), supports desktop/mobile modes
 - `src/modules/security/` - Docker-based OWASP ZAP passive/active scanning
 - `src/modules/reporter/` - Handlebars templates + Puppeteer PDF generation
