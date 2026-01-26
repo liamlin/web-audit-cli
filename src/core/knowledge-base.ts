@@ -326,7 +326,170 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
     },
   },
 
-  // ===== SEO Issues =====
+  // ===== SEO Issues - Lighthouse Audits =====
+  // Reference: https://developer.chrome.com/docs/lighthouse/seo
+  'LH-NOT-CRAWLABLE': {
+    businessImpact: {
+      en: 'Search engines cannot index this page: Your content is invisible to Google and other search engines, resulting in zero organic traffic',
+      'zh-TW': '搜尋引擎無法檢索此頁面：您的內容對 Google 等搜尋引擎完全不可見，自然搜尋流量為零',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '1-4 hours', 'zh-TW': '1-4 小時' },
+    expectedOutcome: {
+      en: 'Page becomes discoverable by search engines, enabling organic traffic acquisition',
+      'zh-TW': '頁面可被搜尋引擎發現，開始獲得自然搜尋流量',
+    },
+  },
+  'LH-MISSING-TITLE': {
+    businessImpact: {
+      en: 'Search results display anomaly: Google will auto-generate a title that may not match brand image or keyword strategy',
+      'zh-TW': '搜尋結果顯示異常：Google 會自動產生標題，可能與品牌形象或關鍵字策略不符',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Control search result presentation, improve brand consistency and click-through rate',
+      'zh-TW': '掌控搜尋結果的呈現方式，維持品牌一致性並提升點擊率',
+    },
+  },
+  'LH-HTTP-ERROR': {
+    businessImpact: {
+      en: 'Page returns error status: Search engines will not index error pages, and users will see broken content',
+      'zh-TW': '頁面回傳錯誤狀態：搜尋引擎不會收錄錯誤頁面，使用者也會看到損壞的內容',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '1-4 hours', 'zh-TW': '1-4 小時' },
+    expectedOutcome: {
+      en: 'Page returns successful status, content can be properly indexed and displayed',
+      'zh-TW': '頁面正常回應，內容可被正確收錄與顯示',
+    },
+  },
+  'LH-ROBOTS-TXT-INVALID': {
+    businessImpact: {
+      en: 'Invalid robots.txt may accidentally block search engines from crawling important pages',
+      'zh-TW': '無效的 robots.txt 可能意外阻擋搜尋引擎檢索重要頁面',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Correct robots.txt syntax ensures search engines can crawl your site as intended',
+      'zh-TW': '正確的 robots.txt 語法確保搜尋引擎能按預期檢索您的網站',
+    },
+  },
+  'LH-MISSING-META-DESC': {
+    businessImpact: {
+      en: 'Low click-through rate: Search results show blank or randomly grabbed text, failing to attract user clicks',
+      'zh-TW': '點擊率偏低：搜尋結果會顯示空白或隨機抓取的文字，難以吸引使用者點擊',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
+    expectedOutcome: {
+      en: 'Optimized snippets can increase search result click-through rate, bringing more organic traffic',
+      'zh-TW': '最佳化過的描述可提高搜尋結果點擊率，帶來更多自然流量',
+    },
+  },
+  'LH-INVALID-CANONICAL': {
+    businessImpact: {
+      en: 'Duplicate content confusion: Invalid canonical URL may cause search engines to split ranking authority across pages',
+      'zh-TW': '重複內容混淆：無效的 canonical URL 可能導致搜尋引擎將排名權重分散到多個頁面',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
+    expectedOutcome: {
+      en: 'Consolidate page authority to the correct URL, improving ranking potential',
+      'zh-TW': '將頁面權重集中到正確的 URL，提升排名潛力',
+    },
+  },
+  'LH-POOR-LINK-TEXT': {
+    businessImpact: {
+      en: 'Search engines and users cannot understand link purposes: Generic text like "click here" provides no context for link destinations',
+      'zh-TW': '搜尋引擎和使用者無法理解連結目的：「點此」之類的通用文字無法說明連結指向的內容',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
+    expectedOutcome: {
+      en: 'Descriptive link text improves accessibility and helps search engines understand page relationships',
+      'zh-TW': '描述性的連結文字可提升無障礙體驗，並幫助搜尋引擎理解頁面間的關係',
+    },
+  },
+  'LH-UNCRAWLABLE-LINKS': {
+    businessImpact: {
+      en: 'Search engines cannot follow links: JavaScript-only or improperly formatted links break the crawl path',
+      'zh-TW': '搜尋引擎無法追蹤連結：純 JavaScript 或格式不正確的連結會中斷檢索路徑',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '2-4 hours', 'zh-TW': '2-4 小時' },
+    expectedOutcome: {
+      en: 'All important links are crawlable, ensuring complete site indexing',
+      'zh-TW': '所有重要連結都可被檢索，確保網站完整收錄',
+    },
+  },
+  'LH-MISSING-IMAGE-ALT': {
+    businessImpact: {
+      en: 'Images are invisible to search engines and screen readers: Missing alt text hurts image search rankings and accessibility',
+      'zh-TW': '圖片對搜尋引擎和螢幕閱讀器不可見：缺少 alt 文字會影響圖片搜尋排名和無障礙性',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-4 hours', 'zh-TW': '1-4 小時' },
+    expectedOutcome: {
+      en: 'Images are discoverable in image search and accessible to all users',
+      'zh-TW': '圖片可在圖片搜尋中被發現，所有使用者都能存取',
+    },
+  },
+  'LH-INVALID-HREFLANG': {
+    businessImpact: {
+      en: 'Wrong language versions shown to users: Invalid hreflang may cause search engines to display the wrong language page in results',
+      'zh-TW':
+        '使用者看到錯誤的語言版本：無效的 hreflang 可能導致搜尋引擎在結果中顯示錯誤語言的頁面',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '2-4 hours', 'zh-TW': '2-4 小時' },
+    expectedOutcome: {
+      en: 'Correct language targeting ensures users see content in their preferred language',
+      'zh-TW': '正確的語言定位確保使用者看到符合其偏好語言的內容',
+    },
+  },
+
+  // ===== SEO Issues - Sitemap Validation =====
+  // Reference: https://www.sitemaps.org/protocol.html
+  'SITEMAP-NOT-FOUND': {
+    businessImpact: {
+      en: 'Search engines may miss pages: Without a sitemap, crawlers rely solely on links to discover your content',
+      'zh-TW': '搜尋引擎可能遺漏頁面：沒有網站地圖，爬蟲只能靠連結發現您的內容',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
+    expectedOutcome: {
+      en: 'Search engines can discover all important pages through sitemap, improving indexing coverage',
+      'zh-TW': '搜尋引擎可透過網站地圖發現所有重要頁面，提升收錄涵蓋率',
+    },
+  },
+  'SITEMAP-FETCH-ERROR': {
+    businessImpact: {
+      en: 'Sitemap exists but is inaccessible: Search engines cannot use your sitemap for indexing guidance',
+      'zh-TW': '網站地圖存在但無法存取：搜尋引擎無法使用您的網站地圖作為收錄指引',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Sitemap is accessible and can be processed by search engines',
+      'zh-TW': '網站地圖可被存取並被搜尋引擎處理',
+    },
+  },
+  'SITEMAP-XSD-INVALID': {
+    businessImpact: {
+      en: 'Invalid sitemap format: Search engines may ignore your sitemap entirely due to schema violations',
+      'zh-TW': '網站地圖格式無效：搜尋引擎可能因違反結構定義而完全忽略您的網站地圖',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '1-4 hours', 'zh-TW': '1-4 小時' },
+    expectedOutcome: {
+      en: 'Sitemap conforms to sitemaps.org protocol and is fully processed by search engines',
+      'zh-TW': '網站地圖符合 sitemaps.org 協議，可被搜尋引擎完整處理',
+    },
+  },
+
+  // ===== SEO Issues - Broken Links (HTTP status codes are factual) =====
   'BROKEN-LINK-404': {
     businessImpact: {
       en: 'Link equity loss: Search engine crawlers hit dead ends, wasting crawl budget and preventing important pages from being indexed',
@@ -351,130 +514,11 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
       'zh-TW': '伺服器穩定回應，提升網站的可檢索性',
     },
   },
-  'MISSING-TITLE': {
-    businessImpact: {
-      en: 'Search results display anomaly: Google will auto-generate a title that may not match brand image',
-      'zh-TW': '搜尋結果顯示異常：Google 會自動產生標題，可能與品牌形象不符',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
-    expectedOutcome: {
-      en: 'Control search result presentation, improve brand consistency',
-      'zh-TW': '掌控搜尋結果的呈現方式，維持品牌一致性',
-    },
-  },
-  'TITLE-TOO-SHORT': {
-    businessImpact: {
-      en: 'Short titles miss keyword opportunities and may appear unprofessional in search results',
-      'zh-TW': '標題太短會錯失關鍵字曝光機會，在搜尋結果中也顯得不夠專業',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '30 minutes', 'zh-TW': '30 分鐘' },
-    expectedOutcome: {
-      en: 'Better keyword targeting and more compelling search listings',
-      'zh-TW': '更精準的關鍵字佈局，讓搜尋結果更吸引人',
-    },
-  },
-  'TITLE-TOO-LONG': {
-    businessImpact: {
-      en: 'Long titles get truncated in search results, potentially cutting off important information',
-      'zh-TW': '標題太長會在搜尋結果中被截斷，重要資訊可能因此看不到',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '30 minutes', 'zh-TW': '30 分鐘' },
-    expectedOutcome: {
-      en: 'Full title visibility in search results',
-      'zh-TW': '在搜尋結果中完整顯示標題',
-    },
-  },
-  'MISSING-META-DESC': {
-    businessImpact: {
-      en: 'Low click-through rate: SERP shows blank or randomly grabbed text, failing to attract user clicks',
-      'zh-TW': '點擊率偏低：搜尋結果會顯示空白或隨機抓取的文字，難以吸引使用者點擊',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
-    expectedOutcome: {
-      en: 'Optimized snippets can increase SERP click-through rate (CTR), bringing more organic traffic',
-      'zh-TW': '最佳化過的描述可提高搜尋結果點擊率，帶來更多自然流量',
-    },
-  },
-  'META-DESC-TOO-LONG': {
-    businessImpact: {
-      en: 'Long descriptions get truncated, potentially losing the call-to-action or key message',
-      'zh-TW': '描述太長會被截斷，可能漏掉重要的行動呼籲或關鍵訊息',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '30 minutes', 'zh-TW': '30 分鐘' },
-    expectedOutcome: {
-      en: 'Complete, compelling meta descriptions in search results',
-      'zh-TW': '搜尋結果中能完整顯示吸引人的描述',
-    },
-  },
-  'MISSING-H1': {
-    businessImpact: {
-      en: 'Search engines may misjudge page focus, affecting keyword rankings',
-      'zh-TW': '搜尋引擎可能誤判頁面重點，影響關鍵字排名',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
-    expectedOutcome: {
-      en: 'Clear page topic, improved relevance scoring',
-      'zh-TW': '明確傳達頁面主題，提升相關性評分',
-    },
-  },
-  'MULTIPLE-H1': {
-    businessImpact: {
-      en: 'Multiple H1 tags can confuse search engines about the main topic of the page',
-      'zh-TW': '多個 H1 標籤會讓搜尋引擎搞不清楚頁面的主要主題',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
-    expectedOutcome: {
-      en: 'Clear heading hierarchy that signals page structure',
-      'zh-TW': '清晰的標題層級，讓搜尋引擎理解頁面結構',
-    },
-  },
-  'MISSING-CANONICAL': {
-    businessImpact: {
-      en: 'Duplicate content penalty risk: Search engines may split authority across similar pages',
-      'zh-TW': '有重複內容被處罰的風險：搜尋引擎可能把權重分散到多個相似頁面',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
-    expectedOutcome: {
-      en: 'Prevent duplicate content penalties, consolidate page authority',
-      'zh-TW': '避免重複內容處罰，把頁面權重集中起來',
-    },
-  },
-  'MISSING-LANG': {
-    businessImpact: {
-      en: 'Search engines may serve your page to the wrong language audience',
-      'zh-TW': '搜尋引擎可能把您的頁面推給不對的語言族群',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '15-30 minutes', 'zh-TW': '15-30 分鐘' },
-    expectedOutcome: {
-      en: 'Correct language targeting in search results',
-      'zh-TW': '讓搜尋結果正確對應目標語言',
-    },
-  },
-  'MISSING-VIEWPORT': {
-    businessImpact: {
-      en: 'Mobile users will see a desktop-sized page, causing poor experience and potential mobile ranking penalty',
-      'zh-TW': '手機使用者會看到電腦版大小的頁面，體驗很差，還可能被降低行動版排名',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '15-30 minutes', 'zh-TW': '15-30 分鐘' },
-    expectedOutcome: {
-      en: 'Proper mobile rendering and mobile-first indexing support',
-      'zh-TW': '正確顯示行動版畫面，支援行動優先索引',
-    },
-  },
 };
 
 /**
  * Default entry used when an issue ID is not in the knowledge base.
+ * Issues without knowledge base entries will still appear in reports.
  */
 export const DEFAULT_BUSINESS_ENTRY: KnowledgeEntry = {
   businessImpact: {

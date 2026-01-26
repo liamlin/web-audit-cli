@@ -43,12 +43,12 @@ const SEVERITY_ORDER: Record<AuditSeverity, number> = {
  */
 const TOOL_DEFINITIONS: Record<string, ToolInfo> = {
   seo: {
-    name: 'Crawlee',
-    version: '3.x',
+    name: 'Google Lighthouse SEO + Crawlee + sitemaps.org validation',
+    version: '12.x / 3.x',
     purpose:
-      'A web scraping and browser automation library for Node.js to build reliable crawlers.',
+      'Lighthouse SEO audits for crawlability, meta tags, and link quality. Crawlee for broken link detection. Sitemap validation per sitemaps.org protocol.',
     credibility:
-      'Developed by Apify, trusted by thousands of developers for production web scraping.',
+      'Lighthouse is the official Google SEO audit tool. Crawlee is an Apify production crawler. Sitemap validation follows sitemaps.org XSD standards.',
   },
   performance: {
     name: 'Google Lighthouse',
@@ -127,7 +127,7 @@ export class MatrixEngine {
       switch (category) {
         case 'SEO':
           description =
-            'Link validation, meta tag analysis (title, description), heading structure (H1), canonical URL, language attribute, viewport configuration';
+            'Google Lighthouse SEO audits (crawlability, title, meta description, canonical, robots.txt, link text, image alt, hreflang), sitemap.xml validation per sitemaps.org protocol, broken link detection via site crawling';
           break;
         case 'PERFORMANCE':
           description =

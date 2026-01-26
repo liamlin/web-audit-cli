@@ -14,10 +14,10 @@ describe('Knowledge Base', () => {
     it('should have entries for common SEO issues', () => {
       const seoIssues = [
         'BROKEN-LINK-404',
-        'MISSING-TITLE',
-        'MISSING-META-DESC',
-        'MISSING-H1',
-        'MISSING-CANONICAL',
+        'LH-MISSING-TITLE',
+        'LH-MISSING-META-DESC',
+        'LH-INVALID-CANONICAL',
+        'SITEMAP-NOT-FOUND',
       ];
 
       for (const id of seoIssues) {

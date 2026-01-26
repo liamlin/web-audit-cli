@@ -1,6 +1,6 @@
 /**
  * Integration tests for SeoAuditor module.
- * Uses vi.mock to mock Crawlee for controlled testing.
+ * Tests Lighthouse SEO integration, sitemap validation, and broken link detection.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -12,6 +12,30 @@ vi.mock('crawlee', () => {
     CheerioCrawler: vi.fn(),
   };
 });
+
+// Mock chrome-launcher
+vi.mock('chrome-launcher', () => ({
+  launch: vi.fn().mockResolvedValue({
+    port: 9222,
+    kill: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+// Mock lighthouse module
+vi.mock('lighthouse', () => ({
+  default: vi.fn(),
+}));
+
+// Mock chrome-detector module
+vi.mock('../../src/modules/performance/chrome-detector.js', () => ({
+  checkChromeInstalled: vi.fn().mockResolvedValue({ installed: true, version: '120.0.0' }),
+  getChromeInstallInstructions: vi.fn().mockReturnValue('Install Chrome'),
+}));
+
+// Mock sitemap-validator module
+vi.mock('../../src/modules/seo/sitemap-validator.js', () => ({
+  validateSitemap: vi.fn(),
+}));
 
 // Default test configuration
 const createConfig = (overrides: Partial<CliConfig> = {}): CliConfig => ({
@@ -34,63 +58,104 @@ function createMockCheerio(html: string) {
   return cheerio.load(html);
 }
 
-describe('SeoAuditor Integration Tests', () => {
-  let mockRequestHandler: ((context: unknown) => Promise<void>) | null = null;
-  let mockFailedRequestHandler: ((context: unknown) => Promise<void>) | null = null;
+// Sample Lighthouse SEO result with issues
+const lighthouseSeoResultWithIssues = {
+  lhr: {
+    categories: {
+      seo: { score: 0.7 },
+    },
+    audits: {
+      'is-crawlable': { score: 1, title: 'Page is crawlable' },
+      'document-title': { score: 0, title: 'Document lacks title', description: 'Add a title' },
+      'http-status-code': { score: 1, title: 'HTTP status OK' },
+      'robots-txt': { score: 1, title: 'robots.txt valid' },
+      'meta-description': {
+        score: 0,
+        title: 'Missing meta description',
+        description: 'Add a meta description',
+      },
+      canonical: { score: 1, title: 'Canonical OK' },
+      'link-text': { score: 1, title: 'Link text OK' },
+      'crawlable-anchors': { score: 1, title: 'Anchors crawlable' },
+      'image-alt': { score: 0, title: 'Images missing alt', description: 'Add alt text' },
+      hreflang: { score: 1, title: 'Hreflang OK' },
+    },
+  },
+};
 
+// Sample Lighthouse SEO result - all passing
+const lighthouseSeoResultAllPassing = {
+  lhr: {
+    categories: {
+      seo: { score: 1 },
+    },
+    audits: {
+      'is-crawlable': { score: 1, title: 'Page is crawlable' },
+      'document-title': { score: 1, title: 'Document has title' },
+      'http-status-code': { score: 1, title: 'HTTP status OK' },
+      'robots-txt': { score: 1, title: 'robots.txt valid' },
+      'meta-description': { score: 1, title: 'Meta description present' },
+      canonical: { score: 1, title: 'Canonical OK' },
+      'link-text': { score: 1, title: 'Link text OK' },
+      'crawlable-anchors': { score: 1, title: 'Anchors crawlable' },
+      'image-alt': { score: 1, title: 'Images have alt' },
+      hreflang: { score: 1, title: 'Hreflang OK' },
+    },
+  },
+};
+
+describe('SeoAuditor Integration Tests', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    // Setup CheerioCrawler mock
+    // Re-setup chrome-detector mock (clearAllMocks clears the implementation)
+    const chromeDetector = await import('../../src/modules/performance/chrome-detector.js');
+    vi.mocked(chromeDetector.checkChromeInstalled).mockResolvedValue({
+      installed: true,
+      version: '120.0.0',
+    });
+    vi.mocked(chromeDetector.getChromeInstallInstructions).mockReturnValue('Install Chrome');
+
+    // Setup CheerioCrawler mock to do nothing by default
     const crawlee = await import('crawlee');
     vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-      const conf = config as {
-        requestHandler: (context: unknown) => Promise<void>;
-        failedRequestHandler: (context: unknown) => Promise<void>;
-      };
-      mockRequestHandler = conf.requestHandler;
-      mockFailedRequestHandler = conf.failedRequestHandler;
-
       return {
-        run: vi.fn().mockImplementation(async (urls: string[]) => {
-          // The run method will be customized per test
-          // by calling mockRequestHandler with appropriate context
+        run: vi.fn().mockImplementation(async () => {
+          // Default: do nothing, return immediately
         }),
       } as never;
+    });
+
+    // Setup sitemap validator mock to return not found by default
+    const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+    vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+      found: false,
+      valid: false,
     });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    mockRequestHandler = null;
-    mockFailedRequestHandler = null;
   });
 
-  describe('Page with SEO issues', () => {
-    it('should detect missing title tag', async () => {
+  describe('Lighthouse SEO Audits', () => {
+    it('should detect Lighthouse SEO issues', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultWithIssues as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      // Setup crawler to mark a page as crawled
       const crawlee = await import('crawlee');
-
-      // Setup the mock to call the request handler with our HTML
       vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
         return {
           run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="UTF-8">
-              </head>
-              <body>
-                <h1>Welcome</h1>
-                <p>Content here</p>
-              </body>
-              </html>
-            `;
-
+            const html = '<html><body>Test</body></html>';
             const $ = createMockCheerio(html);
             await conf.requestHandler({
               request: { url: urls[0] },
@@ -111,89 +176,43 @@ describe('SeoAuditor Integration Tests', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.category).toBe(AuditCategory.SEO);
 
-      // Check for missing title issue
-      const missingTitleIssue = result.data!.issues.find((issue) => issue.id === 'MISSING-TITLE');
+      // Check for Lighthouse SEO issues
+      const missingTitleIssue = result.data!.issues.find(
+        (issue) => issue.id === 'LH-MISSING-TITLE'
+      );
       expect(missingTitleIssue).toBeDefined();
       expect(missingTitleIssue!.severity).toBe(AuditSeverity.HIGH);
-    });
-
-    it('should detect missing meta description', async () => {
-      const crawlee = await import('crawlee');
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <meta charset="UTF-8">
-                <title>Test Page Title</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-              </head>
-              <body>
-                <h1>Welcome to Test</h1>
-                <p>Some content</p>
-              </body>
-              </html>
-            `;
-
-            const $ = createMockCheerio(html);
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 200 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      expect(result.data).toBeDefined();
 
       const missingMetaDescIssue = result.data!.issues.find(
-        (issue) => issue.id === 'MISSING-META-DESC'
+        (issue) => issue.id === 'LH-MISSING-META-DESC'
       );
       expect(missingMetaDescIssue).toBeDefined();
       expect(missingMetaDescIssue!.severity).toBe(AuditSeverity.MEDIUM);
+
+      const missingImageAltIssue = result.data!.issues.find(
+        (issue) => issue.id === 'LH-MISSING-IMAGE-ALT'
+      );
+      expect(missingImageAltIssue).toBeDefined();
+      expect(missingImageAltIssue!.severity).toBe(AuditSeverity.LOW);
     });
 
-    it('should detect missing H1 heading', async () => {
+    it('should report no Lighthouse issues when all audits pass', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      // Setup crawler to mark a page as crawled
       const crawlee = await import('crawlee');
-
       vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
         return {
           run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <meta charset="UTF-8">
-                <title>Test Page Title</title>
-                <meta name="description" content="A test page description that is long enough">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-              </head>
-              <body>
-                <h2>This is an H2, no H1</h2>
-                <p>Some content here</p>
-              </body>
-              </html>
-            `;
-
+            const html = '<html><body>Test</body></html>';
             const $ = createMockCheerio(html);
             await conf.requestHandler({
               request: { url: urls[0] },
@@ -213,34 +232,71 @@ describe('SeoAuditor Integration Tests', () => {
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
 
-      const missingH1Issue = result.data!.issues.find((issue) => issue.id === 'MISSING-H1');
-      expect(missingH1Issue).toBeDefined();
-      expect(missingH1Issue!.severity).toBe(AuditSeverity.HIGH);
+      // Should have no Lighthouse SEO issues (only sitemap not found)
+      const lighthouseIssues = result.data!.issues.filter((issue) => issue.id.startsWith('LH-'));
+      expect(lighthouseIssues).toHaveLength(0);
     });
 
-    it('should detect multiple SEO issues on a poorly optimized page', async () => {
+    it('should handle Chrome not installed gracefully', async () => {
+      const chromeDetector = await import('../../src/modules/performance/chrome-detector.js');
+      vi.mocked(chromeDetector.checkChromeInstalled).mockResolvedValue({
+        installed: false,
+        error: 'Chrome not found',
+      });
+
+      // Setup crawler to mark a page as crawled
       const crawlee = await import('crawlee');
-
       vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
         return {
           run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="UTF-8">
-              </head>
-              <body>
-                <h2>No H1 here</h2>
-                <p>Minimal content</p>
-              </body>
-              </html>
-            `;
+            const html = '<html><body>Test</body></html>';
+            const $ = createMockCheerio(html);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
+          }),
+        } as never;
+      });
 
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 1 });
+      const auditor = new SeoAuditor(config);
+      const result = await auditor.run('https://test-site.com/');
+
+      // Should still succeed (with partial status due to Chrome warning)
+      expect(result.success).toBe(true);
+      expect(result.data!.status).toBe('partial');
+    });
+  });
+
+  describe('Sitemap Validation', () => {
+    it('should detect missing sitemap', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: false,
+        valid: false,
+      });
+
+      // Setup crawler to mark a page as crawled
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
             const $ = createMockCheerio(html);
             await conf.requestHandler({
               request: { url: urls[0] },
@@ -258,24 +314,169 @@ describe('SeoAuditor Integration Tests', () => {
       const result = await auditor.run('https://test-site.com/');
 
       expect(result.success).toBe(true);
-      expect(result.data).toBeDefined();
+      const sitemapIssue = result.data!.issues.find((issue) => issue.id === 'SITEMAP-NOT-FOUND');
+      expect(sitemapIssue).toBeDefined();
+      expect(sitemapIssue!.severity).toBe(AuditSeverity.LOW);
+    });
 
-      const issueIds = result.data!.issues.map((issue) => issue.id);
-      expect(issueIds).toContain('MISSING-TITLE');
-      expect(issueIds).toContain('MISSING-META-DESC');
-      expect(issueIds).toContain('MISSING-H1');
-      expect(issueIds).toContain('MISSING-LANG');
-      expect(issueIds).toContain('MISSING-VIEWPORT');
-      expect(issueIds).toContain('MISSING-CANONICAL');
+    it('should detect invalid sitemap', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
 
-      expect(result.data!.score).toBeLessThan(80);
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: false,
+        urlCount: 5,
+        validationErrors: ['URL entry 3: Invalid URL in <loc>'],
+      });
+
+      // Setup crawler to mark a page as crawled
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
+            const $ = createMockCheerio(html);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
+          }),
+        } as never;
+      });
+
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 1 });
+      const auditor = new SeoAuditor(config);
+      const result = await auditor.run('https://test-site.com/');
+
+      expect(result.success).toBe(true);
+      const sitemapIssue = result.data!.issues.find((issue) => issue.id === 'SITEMAP-XSD-INVALID');
+      expect(sitemapIssue).toBeDefined();
+      expect(sitemapIssue!.severity).toBe(AuditSeverity.HIGH);
+    });
+
+    it('should detect sitemap fetch error', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: false,
+        fetchError: 'HTTP 500 Internal Server Error',
+      });
+
+      // Setup crawler to mark a page as crawled
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
+            const $ = createMockCheerio(html);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
+          }),
+        } as never;
+      });
+
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 1 });
+      const auditor = new SeoAuditor(config);
+      const result = await auditor.run('https://test-site.com/');
+
+      expect(result.success).toBe(true);
+      const sitemapIssue = result.data!.issues.find((issue) => issue.id === 'SITEMAP-FETCH-ERROR');
+      expect(sitemapIssue).toBeDefined();
+      expect(sitemapIssue!.severity).toBe(AuditSeverity.MEDIUM);
+    });
+
+    it('should report no sitemap issues when sitemap is valid', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: true,
+        urlCount: 10,
+      });
+
+      // Setup crawler to mark a page as crawled
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
+            const $ = createMockCheerio(html);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
+          }),
+        } as never;
+      });
+
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 1 });
+      const auditor = new SeoAuditor(config);
+      const result = await auditor.run('https://test-site.com/');
+
+      expect(result.success).toBe(true);
+      const sitemapIssues = result.data!.issues.filter((issue) => issue.id.startsWith('SITEMAP-'));
+      expect(sitemapIssues).toHaveLength(0);
     });
   });
 
   describe('Broken links detection', () => {
     it('should detect 404 broken links', async () => {
-      const crawlee = await import('crawlee');
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
 
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: true,
+        urlCount: 5,
+      });
+
+      const crawlee = await import('crawlee');
       vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
         const conf = config as {
           requestHandler: (context: unknown) => Promise<void>;
@@ -284,24 +485,8 @@ describe('SeoAuditor Integration Tests', () => {
 
         return {
           run: vi.fn().mockImplementation(async (urls: string[]) => {
-            // First, handle the main page
-            const mainHtml = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <meta charset="UTF-8">
-                <title>Test Page With Links</title>
-                <meta name="description" content="A test page with broken links">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>Welcome</h1>
-                <a href="/broken-page">Broken Link</a>
-              </body>
-              </html>
-            `;
-
+            // Handle the main page
+            const mainHtml = '<html><body><a href="/broken">Link</a></body></html>';
             const $ = createMockCheerio(mainHtml);
             await conf.requestHandler({
               request: { url: urls[0] },
@@ -313,7 +498,7 @@ describe('SeoAuditor Integration Tests', () => {
             // Simulate the failed request for the broken link
             await conf.failedRequestHandler({
               request: {
-                url: 'https://test-site.com/broken-page',
+                url: 'https://test-site.com/broken',
                 errorMessages: ['Request failed with status code: 404'],
               },
             });
@@ -331,40 +516,188 @@ describe('SeoAuditor Integration Tests', () => {
 
       const brokenLinkIssue = result.data!.issues.find((issue) => issue.id === 'BROKEN-LINK-404');
       expect(brokenLinkIssue).toBeDefined();
-      // 4xx errors are MEDIUM severity (5xx errors are HIGH)
       expect(brokenLinkIssue!.severity).toBe(AuditSeverity.MEDIUM);
       expect(brokenLinkIssue!.title).toContain('404');
     });
-  });
 
-  describe('Well-optimized page', () => {
-    it('should report no issues for a fully optimized page', async () => {
+    it('should detect 500 server errors', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: true,
+        urlCount: 5,
+      });
+
       const crawlee = await import('crawlee');
-
       vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
         const conf = config as {
           requestHandler: (context: unknown) => Promise<void>;
+          failedRequestHandler: (context: unknown) => Promise<void>;
         };
 
         return {
           run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <title>Perfect SEO Page - Best Practices</title>
-                <meta name="description" content="This is a well-crafted meta description that is exactly the right length for SEO purposes.">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>Welcome to Our Perfectly Optimized Page</h1>
-                <p>This page follows all SEO best practices.</p>
-              </body>
-              </html>
-            `;
+            // Handle the main page
+            const mainHtml = '<html><body><a href="/error">Link</a></body></html>';
+            const $ = createMockCheerio(mainHtml);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
 
+            // Simulate server error
+            await conf.failedRequestHandler({
+              request: {
+                url: 'https://test-site.com/error',
+                errorMessages: ['Request failed with status code: 500'],
+              },
+            });
+          }),
+        } as never;
+      });
+
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 5 });
+      const auditor = new SeoAuditor(config);
+      const result = await auditor.run('https://test-site.com/');
+
+      expect(result.success).toBe(true);
+      const brokenLinkIssue = result.data!.issues.find((issue) => issue.id === 'BROKEN-LINK-500');
+      expect(brokenLinkIssue).toBeDefined();
+      expect(brokenLinkIssue!.severity).toBe(AuditSeverity.HIGH);
+    });
+  });
+
+  describe('Audit result metadata', () => {
+    it('should include audit metadata', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: true,
+        urlCount: 5,
+      });
+
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
+            const $ = createMockCheerio(html);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
+          }),
+        } as never;
+      });
+
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 1 });
+      const auditor = new SeoAuditor(config);
+      const result = await auditor.run('https://test-site.com/');
+
+      expect(result.success).toBe(true);
+      expect(result.data!.metadata).toBeDefined();
+      expect(result.data!.metadata!.pagesAudited).toBeGreaterThanOrEqual(1);
+      expect(result.data!.metadata!.brokenLinksFound).toBe(0);
+      expect(result.data!.metadata!.lighthouseAuditsRun).toBe(true);
+    });
+  });
+
+  describe('Chrome lifecycle', () => {
+    it('should always kill Chrome even when Lighthouse fails', async () => {
+      const mockKill = vi.fn().mockResolvedValue(undefined);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: mockKill,
+      } as never);
+
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockRejectedValue(new Error('Lighthouse failed'));
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: true,
+        urlCount: 5,
+      });
+
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
+            const $ = createMockCheerio(html);
+            await conf.requestHandler({
+              request: { url: urls[0] },
+              response: { statusCode: 200 },
+              $,
+              enqueueLinks: vi.fn().mockResolvedValue(undefined),
+            });
+          }),
+        } as never;
+      });
+
+      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
+      const config = createConfig({ crawlDepth: 1 });
+      const auditor = new SeoAuditor(config);
+      await auditor.run('https://test-site.com/');
+
+      // Chrome should be killed even on failure
+      expect(mockKill).toHaveBeenCalled();
+    });
+  });
+
+  describe('Well-optimized site', () => {
+    it('should report no issues for a fully optimized site', async () => {
+      const lighthouse = await import('lighthouse');
+      vi.mocked(lighthouse.default).mockResolvedValue(lighthouseSeoResultAllPassing as never);
+
+      const chromeLauncher = await import('chrome-launcher');
+      vi.mocked(chromeLauncher.launch).mockResolvedValue({
+        port: 9222,
+        kill: vi.fn().mockResolvedValue(undefined),
+      } as never);
+
+      const sitemapValidator = await import('../../src/modules/seo/sitemap-validator.js');
+      vi.mocked(sitemapValidator.validateSitemap).mockResolvedValue({
+        found: true,
+        valid: true,
+        urlCount: 10,
+      });
+
+      const crawlee = await import('crawlee');
+      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
+        const conf = config as { requestHandler: (context: unknown) => Promise<void> };
+        return {
+          run: vi.fn().mockImplementation(async (urls: string[]) => {
+            const html = '<html><body>Test</body></html>';
             const $ = createMockCheerio(html);
             await conf.requestHandler({
               request: { url: urls[0] },
@@ -386,299 +719,6 @@ describe('SeoAuditor Integration Tests', () => {
       expect(result.data!.issues).toHaveLength(0);
       expect(result.data!.score).toBe(100);
       expect(result.data!.status).toBe('success');
-    });
-  });
-
-  describe('Title edge cases', () => {
-    it('should detect title that is too short', async () => {
-      const crawlee = await import('crawlee');
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <title>Short</title>
-                <meta name="description" content="Valid description here">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>Page Content</h1>
-              </body>
-              </html>
-            `;
-
-            const $ = createMockCheerio(html);
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 200 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      const shortTitleIssue = result.data!.issues.find((issue) => issue.id === 'TITLE-TOO-SHORT');
-      expect(shortTitleIssue).toBeDefined();
-      expect(shortTitleIssue!.severity).toBe(AuditSeverity.MEDIUM);
-    });
-
-    it('should detect title that is too long', async () => {
-      const crawlee = await import('crawlee');
-
-      const longTitle =
-        'This is an extremely long title that exceeds the recommended character limit for SEO optimization';
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <title>${longTitle}</title>
-                <meta name="description" content="Valid description here">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>Page Content</h1>
-              </body>
-              </html>
-            `;
-
-            const $ = createMockCheerio(html);
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 200 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      const longTitleIssue = result.data!.issues.find((issue) => issue.id === 'TITLE-TOO-LONG');
-      expect(longTitleIssue).toBeDefined();
-      expect(longTitleIssue!.severity).toBe(AuditSeverity.LOW);
-    });
-  });
-
-  describe('Multiple H1 headings', () => {
-    it('should detect multiple H1 tags', async () => {
-      const crawlee = await import('crawlee');
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <title>Page With Multiple H1s</title>
-                <meta name="description" content="Valid description here">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>First H1</h1>
-                <p>Some content</p>
-                <h1>Second H1</h1>
-                <p>More content</p>
-              </body>
-              </html>
-            `;
-
-            const $ = createMockCheerio(html);
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 200 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      const multipleH1Issue = result.data!.issues.find((issue) => issue.id === 'MULTIPLE-H1');
-      expect(multipleH1Issue).toBeDefined();
-      expect(multipleH1Issue!.severity).toBe(AuditSeverity.MEDIUM);
-      expect(multipleH1Issue!.rawValue).toEqual({ count: 2 });
-    });
-  });
-
-  describe('Audit result metadata', () => {
-    it('should include page audit count in metadata', async () => {
-      const crawlee = await import('crawlee');
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <title>Valid Title For SEO</title>
-                <meta name="description" content="Valid description">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>Main Heading</h1>
-              </body>
-              </html>
-            `;
-
-            const $ = createMockCheerio(html);
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 200 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      expect(result.data!.metadata).toBeDefined();
-      expect(result.data!.metadata!.pagesAudited).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe('HTTP status code handling', () => {
-    it('should handle pages that return 4xx errors', async () => {
-      const crawlee = await import('crawlee');
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            // Simulate a page returning 403
-            const html = '<html><body>Forbidden</body></html>';
-            const $ = createMockCheerio(html);
-
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 403 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      expect(result.data).toBeDefined();
-
-      // Should have a broken link issue for the 403
-      const brokenLinkIssue = result.data!.issues.find((issue) =>
-        issue.id.startsWith('BROKEN-LINK-')
-      );
-      expect(brokenLinkIssue).toBeDefined();
-    });
-  });
-
-  describe('Meta description edge cases', () => {
-    it('should detect meta description that is too long', async () => {
-      const crawlee = await import('crawlee');
-
-      const longDescription =
-        'This is an extremely long meta description that exceeds the recommended character limit. It goes on and on with lots of text that search engines will likely truncate in the search results snippet. This is not ideal for SEO.';
-
-      vi.mocked(crawlee.CheerioCrawler).mockImplementation((config: unknown) => {
-        const conf = config as {
-          requestHandler: (context: unknown) => Promise<void>;
-        };
-
-        return {
-          run: vi.fn().mockImplementation(async (urls: string[]) => {
-            const html = `
-              <!DOCTYPE html>
-              <html lang="en">
-              <head>
-                <title>Valid Title Here</title>
-                <meta name="description" content="${longDescription}">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <link rel="canonical" href="https://test-site.com/">
-              </head>
-              <body>
-                <h1>Page Content</h1>
-              </body>
-              </html>
-            `;
-
-            const $ = createMockCheerio(html);
-            await conf.requestHandler({
-              request: { url: urls[0] },
-              response: { statusCode: 200 },
-              $,
-              enqueueLinks: vi.fn().mockResolvedValue(undefined),
-            });
-          }),
-        } as never;
-      });
-
-      const { SeoAuditor } = await import('../../src/modules/seo/index.js');
-      const config = createConfig({ crawlDepth: 1 });
-      const auditor = new SeoAuditor(config);
-      const result = await auditor.run('https://test-site.com/');
-
-      expect(result.success).toBe(true);
-      const longDescIssue = result.data!.issues.find((issue) => issue.id === 'META-DESC-TOO-LONG');
-      expect(longDescIssue).toBeDefined();
-      expect(longDescIssue!.severity).toBe(AuditSeverity.LOW);
     });
   });
 });

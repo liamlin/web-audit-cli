@@ -1,14 +1,12 @@
 /**
  * Performance Auditor - Runs Lighthouse to analyze Core Web Vitals.
- * Uses chrome-launcher to manage Chrome instances.
  *
  * Supports two modes:
  * - desktop: No throttling, reflects actual desktop browsing experience
  * - mobile-4g: DevTools throttling simulating mobile 4G conditions
  */
 
-import lighthouse, { type Result as LighthouseResult } from 'lighthouse';
-import * as chromeLauncher from 'chrome-launcher';
+import { type Result as LighthouseResult } from 'lighthouse';
 import {
   AuditCategory,
   AuditSeverity,
@@ -20,6 +18,7 @@ import { BaseAuditor } from '../../core/base-auditor.js';
 import { runModule } from '../../utils/error-handler.js';
 import { logDebug } from '../../utils/logger.js';
 import { checkChromeInstalled, getChromeInstallInstructions } from './chrome-detector.js';
+import { runLighthouse } from '../../utils/lighthouse-runner.js';
 
 /**
  * Test specification labels for each performance mode.
@@ -148,71 +147,50 @@ export class PerformanceAuditor extends BaseAuditor {
     }
 
     return runModule('Performance', async () => {
-      let chrome: chromeLauncher.LaunchedChrome | null = null;
+      // Get settings based on performance mode
+      const settings = this.getLighthouseSettings();
+      logDebug(`Performance mode: ${this.config.performanceMode} (${this.getTestSpecLabel().en})`);
 
-      try {
-        // Launch Chrome with modern headless mode for accurate rendering
-        logDebug('Launching Chrome...');
-        chrome = await chromeLauncher.launch({
-          chromeFlags: ['--headless=new', '--disable-gpu', '--no-sandbox'],
-        });
-
-        logDebug(`Chrome launched on port ${chrome.port}`);
-
-        // Get settings based on performance mode
-        const settings = this.getLighthouseSettings();
-        logDebug(
-          `Performance mode: ${this.config.performanceMode} (${this.getTestSpecLabel().en})`
-        );
-
-        // Run Lighthouse
-        const result = await lighthouse(
-          url,
-          {
-            port: chrome.port,
-            logLevel: 'error',
-            output: 'json',
-            onlyCategories: ['performance'],
-          },
-          {
-            extends: 'lighthouse:default',
-            settings,
-          }
-        );
-
-        if (!result?.lhr) {
-          throw new Error('Lighthouse did not return results');
+      // Run Lighthouse using the shared runner (handles Chrome and mutex)
+      const lhr = await runLighthouse(
+        url,
+        {
+          logLevel: 'error',
+          output: 'json',
+          onlyCategories: ['performance'],
+        },
+        {
+          extends: 'lighthouse:default',
+          settings,
         }
+      );
 
-        // Extract metrics and issues
-        const metrics = this.extractMetrics(result.lhr);
-        const issues = this.analyzeMetrics(metrics, url);
-        const opportunities = this.extractOpportunities(result.lhr, url);
-
-        // Combine all issues
-        const allIssues = [...issues, ...opportunities];
-
-        // Include test spec in result metadata
-        const testSpecLabel = this.getTestSpecLabel();
-
-        return this.createResult(url, allIssues, {
-          lighthouseScore: metrics.score,
-          lcp: metrics.lcp,
-          cls: metrics.cls,
-          tbt: metrics.tbt,
-          fcp: metrics.fcp,
-          si: metrics.si,
-          performanceMode: this.config.performanceMode,
-          testSpec: testSpecLabel.en,
-          testSpecZh: testSpecLabel['zh-TW'],
-        });
-      } finally {
-        // CRITICAL: Always kill Chrome to prevent zombie processes
-        if (chrome) {
-          logDebug('Killing Chrome...');
-          await chrome.kill();
-        }
+      if (!lhr) {
+        throw new Error('Lighthouse did not return results');
       }
+
+      // Extract metrics and issues
+      const metrics = this.extractMetrics(lhr);
+      const issues = this.analyzeMetrics(metrics, url);
+      const opportunities = this.extractOpportunities(lhr, url);
+
+      // Combine all issues
+      const allIssues = [...issues, ...opportunities];
+
+      // Include test spec in result metadata
+      const testSpecLabel = this.getTestSpecLabel();
+
+      return this.createResult(url, allIssues, {
+        lighthouseScore: metrics.score,
+        lcp: metrics.lcp,
+        cls: metrics.cls,
+        tbt: metrics.tbt,
+        fcp: metrics.fcp,
+        si: metrics.si,
+        performanceMode: this.config.performanceMode,
+        testSpec: testSpecLabel.en,
+        testSpecZh: testSpecLabel['zh-TW'],
+      });
     });
   }
 
