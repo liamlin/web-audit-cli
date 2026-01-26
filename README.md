@@ -172,10 +172,7 @@ This project uses [Semantic Versioning](https://semver.org/) and [release-please
 
 ### Pre-1.0 Status
 
-While the version is below 1.0.0, the API and CLI interface may change. We follow `bump-minor-pre-major` convention:
-
-- Breaking changes bump minor version (0.1.0 → 0.2.0)
-- New features and fixes bump patch version (0.1.0 → 0.1.1)
+While the version is below 1.0.0, the API and CLI interface may change. Breaking changes will bump the minor version instead of major.
 
 ## License
 
