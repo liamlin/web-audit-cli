@@ -39,7 +39,7 @@ A comprehensive CLI tool for website SEO, performance, and security auditing. Co
 
 ## Features
 
-- **SEO Audit**: Crawls websites to find broken links, missing meta tags, H1 issues, and more
+- **SEO Audit**: Uses Google Lighthouse for crawlability, meta tags, canonicals, and robots.txt checks; validates sitemap.xml against sitemaps.org schema; detects broken links via Crawlee
 - **Performance Audit**: Uses Lighthouse to analyze Core Web Vitals (LCP, CLS, TBT) with desktop or mobile simulation
 - **Security Audit**: Runs OWASP ZAP via Docker for passive/active security scanning
 - **Business Reports**: Transforms technical issues into stakeholder-friendly language with impact assessments
@@ -49,7 +49,7 @@ A comprehensive CLI tool for website SEO, performance, and security auditing. Co
 ## Requirements
 
 - **Node.js v20+** (required - enforced at runtime)
-- **Chrome/Chromium** (optional - for performance auditing via Lighthouse)
+- **Chrome/Chromium** (optional - for SEO and performance auditing via Lighthouse)
 - **Docker** (optional - for security scanning via OWASP ZAP)
 
 ### Environment Detection
@@ -57,7 +57,7 @@ A comprehensive CLI tool for website SEO, performance, and security auditing. Co
 The CLI automatically checks for dependencies at startup:
 
 - If Node.js version is below 20.0, the CLI exits with an error and installation instructions
-- If Chrome is not found, the performance module is skipped with a warning
+- If Chrome is not found, SEO runs without Lighthouse checks and performance module is skipped
 - If Docker is not installed or not running, the security module is skipped with a warning
 
 Use `--verbose` to see a detailed environment summary before the audit runs.
