@@ -6,6 +6,37 @@
 
 A comprehensive CLI tool for website SEO, performance, and security auditing. Combines three audit engines and transforms technical findings into business-focused reports.
 
+## Demo
+
+<p align="center">
+  <img src="docs/images/executive-summary.png" alt="Executive Summary" width="700">
+</p>
+
+<p align="center"><em>Executive Summary with health scores and severity breakdown</em></p>
+
+<details>
+<summary><strong>View more report sections</strong></summary>
+
+<p align="center">
+  <img src="docs/images/audit-methodology.png" alt="Audit Methodology" width="700">
+</p>
+
+<p align="center"><em>Audit Methodology showing tools and test conditions</em></p>
+
+<p align="center">
+  <img src="docs/images/priority-actions.png" alt="Priority Actions" width="700">
+</p>
+
+<p align="center"><em>Priority Actions ranked by business impact</em></p>
+
+<p align="center">
+  <img src="docs/images/issue-analysis.png" alt="Detailed Issue Analysis" width="700">
+</p>
+
+<p align="center"><em>Detailed Issue Analysis with business impact matrix</em></p>
+
+</details>
+
 ## Features
 
 - **SEO Audit**: Crawls websites to find broken links, missing meta tags, H1 issues, and more
