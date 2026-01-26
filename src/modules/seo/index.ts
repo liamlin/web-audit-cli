@@ -1,9 +1,11 @@
 /**
  * SEO Auditor - Crawls websites to find SEO issues.
- * Uses Crawlee with CheerioCrawler for efficient crawling.
+ * Uses Crawlee with CheerioCrawler for broken link detection and site crawling.
+ * Uses Google Lighthouse SEO audits for authoritative SEO checks.
  */
 
 import { CheerioCrawler, type CheerioCrawlingContext } from 'crawlee';
+import { type Result as LighthouseResult } from 'lighthouse';
 import {
   AuditCategory,
   AuditSeverity,
@@ -14,12 +16,75 @@ import {
 import { BaseAuditor } from '../../core/base-auditor.js';
 import { runModule } from '../../utils/error-handler.js';
 import { logDebug } from '../../utils/logger.js';
-
-// Use the CheerioAPI type from the Crawlee context
-type CheerioAPI = CheerioCrawlingContext['$'];
+import {
+  checkChromeInstalled,
+  getChromeInstallInstructions,
+} from '../performance/chrome-detector.js';
+import { runLighthouse } from '../../utils/lighthouse-runner.js';
+import { validateSitemap } from './sitemap-validator.js';
 
 /**
- * SEO Auditor implementation using Crawlee.
+ * Lighthouse SEO audit mapping to our issue IDs and severities.
+ * Severities are based on Lighthouse scoring weights and SEO impact.
+ */
+const LIGHTHOUSE_SEO_AUDITS: Record<
+  string,
+  { id: string; severity: AuditSeverity; title: string }
+> = {
+  'is-crawlable': {
+    id: 'LH-NOT-CRAWLABLE',
+    severity: AuditSeverity.CRITICAL,
+    title: 'Page is not crawlable',
+  },
+  'document-title': {
+    id: 'LH-MISSING-TITLE',
+    severity: AuditSeverity.HIGH,
+    title: 'Document does not have a <title> element',
+  },
+  'http-status-code': {
+    id: 'LH-HTTP-ERROR',
+    severity: AuditSeverity.HIGH,
+    title: 'Page has unsuccessful HTTP status code',
+  },
+  'robots-txt': {
+    id: 'LH-ROBOTS-TXT-INVALID',
+    severity: AuditSeverity.MEDIUM,
+    title: 'robots.txt is not valid',
+  },
+  'meta-description': {
+    id: 'LH-MISSING-META-DESC',
+    severity: AuditSeverity.MEDIUM,
+    title: 'Document does not have a meta description',
+  },
+  canonical: {
+    id: 'LH-INVALID-CANONICAL',
+    severity: AuditSeverity.MEDIUM,
+    title: 'Document does not have a valid rel=canonical',
+  },
+  'link-text': {
+    id: 'LH-POOR-LINK-TEXT',
+    severity: AuditSeverity.LOW,
+    title: 'Links do not have descriptive text',
+  },
+  'crawlable-anchors': {
+    id: 'LH-UNCRAWLABLE-LINKS',
+    severity: AuditSeverity.LOW,
+    title: 'Links are not crawlable',
+  },
+  'image-alt': {
+    id: 'LH-MISSING-IMAGE-ALT',
+    severity: AuditSeverity.LOW,
+    title: 'Image elements do not have [alt] attributes',
+  },
+  hreflang: {
+    id: 'LH-INVALID-HREFLANG',
+    severity: AuditSeverity.LOW,
+    title: 'Document does not have a valid hreflang',
+  },
+};
+
+/**
+ * SEO Auditor implementation using Crawlee and Lighthouse.
  */
 export class SeoAuditor extends BaseAuditor {
   protected readonly category = AuditCategory.SEO;
@@ -42,26 +107,16 @@ export class SeoAuditor extends BaseAuditor {
     return runModule('SEO', async () => {
       const baseUrl = new URL(url);
 
-      const crawler = new CheerioCrawler({
-        maxRequestsPerCrawl: this.config.crawlDepth,
-        maxConcurrency: 5,
-        requestHandlerTimeoutSecs: 30,
+      // Run Lighthouse SEO audits if Chrome is available
+      const lighthouseResult = await this.runLighthouseSeoAudits(url);
+      this.issues.push(...lighthouseResult.issues);
 
-        requestHandler: async (context) => {
-          await this.handleRequest(context, baseUrl);
-        },
+      // Run sitemap validation
+      const sitemapIssues = await this.runSitemapValidation(baseUrl.origin);
+      this.issues.push(...sitemapIssues);
 
-        failedRequestHandler: async ({ request }) => {
-          this.handleFailedRequest(request.url, request.errorMessages);
-        },
-      });
-
-      try {
-        await crawler.run([url]);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown crawl error';
-        this.warnings.push(`Crawl error: ${message}`);
-      }
+      // Run Crawlee for broken link detection
+      await this.runCrawleeBrokenLinkCheck(url, baseUrl);
 
       // Determine result status
       const status: 'success' | 'partial' | 'failed' =
@@ -81,6 +136,7 @@ export class SeoAuditor extends BaseAuditor {
         metadata: {
           pagesAudited: this.crawledUrls.size,
           brokenLinksFound: this.brokenLinks.size,
+          lighthouseAuditsRun: lighthouseResult.didRun,
         },
       };
 
@@ -93,10 +149,219 @@ export class SeoAuditor extends BaseAuditor {
   }
 
   /**
-   * Handle a single page request.
+   * Run Lighthouse SEO audits.
+   * Returns both the issues found and whether Lighthouse actually ran.
+   */
+  private async runLighthouseSeoAudits(
+    url: string
+  ): Promise<{ issues: AuditIssue[]; didRun: boolean }> {
+    const issues: AuditIssue[] = [];
+
+    // Check if Chrome is available
+    const chromeCheck = await checkChromeInstalled();
+    if (!chromeCheck.installed) {
+      const instructions = getChromeInstallInstructions();
+      this.warnings.push(`Chrome not installed, Lighthouse SEO audits skipped. ${instructions}`);
+      logDebug('Chrome not installed, skipping Lighthouse SEO audits');
+      return { issues, didRun: false };
+    }
+
+    try {
+      logDebug('Running Lighthouse SEO audits...');
+
+      // Run Lighthouse using the shared runner (handles Chrome and mutex)
+      const lhr = await runLighthouse(
+        url,
+        {
+          logLevel: 'error',
+          output: 'json',
+          onlyCategories: ['seo'],
+        },
+        {
+          extends: 'lighthouse:default',
+          settings: {
+            formFactor: 'desktop',
+            screenEmulation: {
+              mobile: false,
+              width: 1350,
+              height: 940,
+              deviceScaleFactor: 1,
+              disabled: false,
+            },
+            throttling: {
+              rttMs: 0,
+              throughputKbps: 0,
+              cpuSlowdownMultiplier: 1,
+              downloadThroughputKbps: 0,
+              uploadThroughputKbps: 0,
+              requestLatencyMs: 0,
+            },
+            throttlingMethod: 'provided',
+          },
+        }
+      );
+
+      if (!lhr) {
+        this.warnings.push('Lighthouse did not return SEO results');
+        return { issues, didRun: false };
+      }
+
+      // Extract failed SEO audits
+      const extractedIssues = this.extractLighthouseSeoIssues(lhr, url);
+      issues.push(...extractedIssues);
+
+      logDebug(`Lighthouse SEO audits found ${issues.length} issues`);
+      return { issues, didRun: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.warnings.push(`Lighthouse SEO audit error: ${message}`);
+      logDebug(`Lighthouse SEO audit error: ${message}`);
+      return { issues, didRun: false };
+    }
+  }
+
+  /**
+   * Extract SEO issues from Lighthouse results.
+   */
+  private extractLighthouseSeoIssues(lhr: LighthouseResult, url: string): AuditIssue[] {
+    const issues: AuditIssue[] = [];
+    const audits = lhr.audits;
+
+    for (const [auditId, config] of Object.entries(LIGHTHOUSE_SEO_AUDITS)) {
+      const audit = audits[auditId];
+      if (!audit) {
+        continue;
+      }
+
+      // Check if the audit failed:
+      // - score < 1 means failed or needs improvement
+      // - scoreDisplayMode === 'error' means the audit errored during execution
+      const failed =
+        (audit.score !== null && audit.score < 1) || audit.scoreDisplayMode === 'error';
+      if (!failed) {
+        continue;
+      }
+
+      issues.push(
+        this.createIssue({
+          id: config.id,
+          title: config.title,
+          description: audit.description ?? audit.title ?? config.title,
+          severity: config.severity,
+          suggestion: audit.description ?? `Fix the ${config.title.toLowerCase()} issue`,
+          affectedUrl: url,
+          rawValue: {
+            lighthouseAuditId: auditId,
+            score: audit.score,
+            displayValue: audit.displayValue,
+          },
+        })
+      );
+    }
+
+    return issues;
+  }
+
+  /**
+   * Run sitemap validation.
+   */
+  private async runSitemapValidation(origin: string): Promise<AuditIssue[]> {
+    const issues: AuditIssue[] = [];
+
+    try {
+      const sitemapUrl = `${origin}/sitemap.xml`;
+      logDebug(`Validating sitemap at ${sitemapUrl}`);
+
+      const result = await validateSitemap(sitemapUrl);
+
+      if (!result.found) {
+        // Sitemap not found is informational - not required for all sites
+        issues.push(
+          this.createIssue({
+            id: 'SITEMAP-NOT-FOUND',
+            title: 'No sitemap.xml found',
+            description: `No sitemap found at ${sitemapUrl}. While not required, sitemaps help search engines discover your pages.`,
+            severity: AuditSeverity.LOW,
+            suggestion:
+              'Consider creating a sitemap.xml file following the sitemaps.org protocol to help search engines index your site.',
+            affectedUrl: sitemapUrl,
+            rawValue: { url: sitemapUrl },
+          })
+        );
+      } else if (result.fetchError) {
+        issues.push(
+          this.createIssue({
+            id: 'SITEMAP-FETCH-ERROR',
+            title: 'Sitemap could not be fetched',
+            description: `Sitemap at ${sitemapUrl} exists but could not be retrieved: ${result.fetchError}`,
+            severity: AuditSeverity.MEDIUM,
+            suggestion: 'Ensure your sitemap.xml is accessible and returns a valid response.',
+            affectedUrl: sitemapUrl,
+            rawValue: { url: sitemapUrl, error: result.fetchError },
+          })
+        );
+      } else if (!result.valid) {
+        issues.push(
+          this.createIssue({
+            id: 'SITEMAP-XSD-INVALID',
+            title: 'Sitemap does not conform to XML schema',
+            description: `Sitemap at ${sitemapUrl} does not conform to the official sitemaps.org XSD schema: ${result.validationErrors?.join('; ') ?? 'Unknown validation error'}`,
+            severity: AuditSeverity.HIGH,
+            suggestion:
+              'Validate your sitemap against the official schema at https://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd',
+            affectedUrl: sitemapUrl,
+            rawValue: {
+              url: sitemapUrl,
+              errors: result.validationErrors,
+              urlCount: result.urlCount,
+            },
+          })
+        );
+      }
+
+      logDebug(
+        `Sitemap validation complete: found=${result.found}, valid=${result.valid}, urls=${result.urlCount ?? 0}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.warnings.push(`Sitemap validation error: ${message}`);
+      logDebug(`Sitemap validation error: ${message}`);
+    }
+
+    return issues;
+  }
+
+  /**
+   * Run Crawlee for broken link detection.
+   */
+  private async runCrawleeBrokenLinkCheck(url: string, baseUrl: URL): Promise<void> {
+    const crawler = new CheerioCrawler({
+      maxRequestsPerCrawl: this.config.crawlDepth,
+      maxConcurrency: 5,
+      requestHandlerTimeoutSecs: 30,
+
+      requestHandler: async (context) => {
+        await this.handleRequest(context, baseUrl);
+      },
+
+      failedRequestHandler: async ({ request }) => {
+        this.handleFailedRequest(request.url, request.errorMessages);
+      },
+    });
+
+    try {
+      await crawler.run([url]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown crawl error';
+      this.warnings.push(`Crawl error: ${message}`);
+    }
+  }
+
+  /**
+   * Handle a single page request for broken link detection.
    */
   private async handleRequest(context: CheerioCrawlingContext, baseUrl: URL): Promise<void> {
-    const { request, response, $, enqueueLinks } = context;
+    const { request, response, enqueueLinks } = context;
     const currentUrl = request.url;
 
     this.crawledUrls.add(currentUrl);
@@ -108,14 +373,6 @@ export class SeoAuditor extends BaseAuditor {
       this.addBrokenLinkIssue(currentUrl, statusCode);
       return;
     }
-
-    // Run SEO checks on the page
-    this.checkTitle($, currentUrl);
-    this.checkMetaDescription($, currentUrl);
-    this.checkH1($, currentUrl);
-    this.checkCanonical($, currentUrl);
-    this.checkLanguage($, currentUrl);
-    this.checkViewport($, currentUrl);
 
     // Enqueue internal links for crawling
     try {
@@ -185,174 +442,5 @@ export class SeoAuditor extends BaseAuditor {
         rawValue: { statusCode, url },
       })
     );
-  }
-
-  /**
-   * Check page title.
-   */
-  private checkTitle($: CheerioAPI, url: string): void {
-    const title = $('title').text().trim();
-
-    if (!title) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MISSING-TITLE',
-          title: 'Missing Page Title',
-          description: 'The page does not have a <title> tag',
-          severity: AuditSeverity.HIGH,
-          suggestion: 'Add a descriptive <title> tag to the page head',
-          affectedUrl: url,
-        })
-      );
-    } else if (title.length < 10) {
-      this.issues.push(
-        this.createIssue({
-          id: 'TITLE-TOO-SHORT',
-          title: 'Page Title Too Short',
-          description: `Title is only ${title.length} characters (recommended: 10-60)`,
-          severity: AuditSeverity.MEDIUM,
-          suggestion: 'Expand the title to include relevant keywords (10-60 characters)',
-          affectedUrl: url,
-          rawValue: { title, length: title.length },
-        })
-      );
-    } else if (title.length > 60) {
-      this.issues.push(
-        this.createIssue({
-          id: 'TITLE-TOO-LONG',
-          title: 'Page Title Too Long',
-          description: `Title is ${title.length} characters (may be truncated in search results)`,
-          severity: AuditSeverity.LOW,
-          suggestion: 'Shorten the title to under 60 characters',
-          affectedUrl: url,
-          rawValue: { title, length: title.length },
-        })
-      );
-    }
-  }
-
-  /**
-   * Check meta description.
-   */
-  private checkMetaDescription($: CheerioAPI, url: string): void {
-    const desc = $('meta[name="description"]').attr('content')?.trim();
-
-    if (!desc) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MISSING-META-DESC',
-          title: 'Missing Meta Description',
-          description: 'The page does not have a meta description',
-          severity: AuditSeverity.MEDIUM,
-          suggestion:
-            'Add a <meta name="description" content="..."> tag with a compelling summary (120-160 characters)',
-          affectedUrl: url,
-        })
-      );
-    } else if (desc.length > 160) {
-      this.issues.push(
-        this.createIssue({
-          id: 'META-DESC-TOO-LONG',
-          title: 'Meta Description Too Long',
-          description: `Meta description is ${desc.length} characters (may be truncated)`,
-          severity: AuditSeverity.LOW,
-          suggestion: 'Shorten the meta description to under 160 characters',
-          affectedUrl: url,
-          rawValue: { description: desc, length: desc.length },
-        })
-      );
-    }
-  }
-
-  /**
-   * Check H1 heading.
-   */
-  private checkH1($: CheerioAPI, url: string): void {
-    const h1Count = $('h1').length;
-
-    if (h1Count === 0) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MISSING-H1',
-          title: 'Missing H1 Heading',
-          description: 'The page does not have an H1 heading',
-          severity: AuditSeverity.HIGH,
-          suggestion: 'Add a single H1 heading that describes the main topic of the page',
-          affectedUrl: url,
-        })
-      );
-    } else if (h1Count > 1) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MULTIPLE-H1',
-          title: 'Multiple H1 Headings',
-          description: `Page has ${h1Count} H1 headings (recommended: 1)`,
-          severity: AuditSeverity.MEDIUM,
-          suggestion: 'Use only one H1 heading per page for clear content hierarchy',
-          affectedUrl: url,
-          rawValue: { count: h1Count },
-        })
-      );
-    }
-  }
-
-  /**
-   * Check canonical URL.
-   */
-  private checkCanonical($: CheerioAPI, url: string): void {
-    const canonical = $('link[rel="canonical"]').attr('href');
-
-    if (!canonical) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MISSING-CANONICAL',
-          title: 'Missing Canonical URL',
-          description: 'The page does not specify a canonical URL',
-          severity: AuditSeverity.MEDIUM,
-          suggestion: 'Add a <link rel="canonical" href="..."> to prevent duplicate content issues',
-          affectedUrl: url,
-        })
-      );
-    }
-  }
-
-  /**
-   * Check language declaration.
-   */
-  private checkLanguage($: CheerioAPI, url: string): void {
-    const lang = $('html').attr('lang');
-
-    if (!lang) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MISSING-LANG',
-          title: 'Missing Language Declaration',
-          description: 'The page does not declare a language in the <html> tag',
-          severity: AuditSeverity.LOW,
-          suggestion: 'Add a lang attribute to the <html> tag (e.g., <html lang="en">)',
-          affectedUrl: url,
-        })
-      );
-    }
-  }
-
-  /**
-   * Check viewport meta tag.
-   */
-  private checkViewport($: CheerioAPI, url: string): void {
-    const viewport = $('meta[name="viewport"]').attr('content');
-
-    if (!viewport) {
-      this.issues.push(
-        this.createIssue({
-          id: 'MISSING-VIEWPORT',
-          title: 'Missing Viewport Meta Tag',
-          description: 'The page does not have a viewport meta tag for mobile',
-          severity: AuditSeverity.MEDIUM,
-          suggestion: 'Add <meta name="viewport" content="width=device-width, initial-scale=1">',
-          affectedUrl: url,
-        })
-      );
-    }
   }
 }
