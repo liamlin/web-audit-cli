@@ -1,5 +1,6 @@
 # web-audit-cli
 
+[![CI](https://github.com/liamlin/web-audit-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/liamlin/web-audit-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
