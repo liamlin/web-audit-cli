@@ -34,7 +34,6 @@ function createMockConfig(
     format: ['pdf'],
     crawlDepth: 50,
     timeout: 300,
-    securityScanMode: 'passive',
     performanceMode: 'desktop',
     language: 'en',
     verbose: false,
@@ -54,15 +53,15 @@ function createMockAuditor(
 }
 
 // Helper to create a successful result
-function createSuccessResult(category: AuditCategory, score: number): ModuleResult<AuditResult> {
+function createSuccessResult(category: AuditCategory): ModuleResult<AuditResult> {
   return {
     success: true,
     data: {
       url: 'https://example.com',
       timestamp: new Date(),
-      score,
       category,
       issues: [],
+      passes: [],
       status: 'success',
     },
     warnings: [],
@@ -80,9 +79,9 @@ function createFailedResult(
     data: {
       url: 'https://example.com',
       timestamp: new Date(),
-      score: 0,
       category,
       issues: [],
+      passes: [],
       status: 'failed',
       errorMessage,
     },
@@ -103,9 +102,9 @@ function createSkippedResult(category: AuditCategory, reason: string): ModuleRes
     data: {
       url: 'https://example.com',
       timestamp: new Date(),
-      score: 0,
       category,
       issues: [],
+      passes: [],
       status: 'skipped',
       errorMessage: reason,
     },
@@ -123,10 +122,7 @@ describe('Orchestrator', () => {
     it('should register modules correctly', () => {
       const config = createMockConfig();
       const orchestrator = new Orchestrator(config);
-      const auditor = createMockAuditor(
-        AuditCategory.SEO,
-        createSuccessResult(AuditCategory.SEO, 100)
-      );
+      const auditor = createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO));
 
       orchestrator.registerModule('SEO', 'seo', auditor);
 
@@ -142,15 +138,15 @@ describe('Orchestrator', () => {
 
       const seoAuditor = createMockAuditor(
         AuditCategory.SEO,
-        createSuccessResult(AuditCategory.SEO, 85)
+        createSuccessResult(AuditCategory.SEO)
       );
       const perfAuditor = createMockAuditor(
         AuditCategory.PERFORMANCE,
-        createSuccessResult(AuditCategory.PERFORMANCE, 92)
+        createSuccessResult(AuditCategory.PERFORMANCE)
       );
       const secAuditor = createMockAuditor(
         AuditCategory.SECURITY,
-        createSuccessResult(AuditCategory.SECURITY, 78)
+        createSuccessResult(AuditCategory.SECURITY)
       );
 
       orchestrator.registerModule('SEO', 'seo', seoAuditor);
@@ -172,20 +168,17 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'SEO',
         'seo',
-        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO, 85))
+        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO))
       );
       orchestrator.registerModule(
         'Performance',
         'performance',
-        createMockAuditor(
-          AuditCategory.PERFORMANCE,
-          createSuccessResult(AuditCategory.PERFORMANCE, 92)
-        )
+        createMockAuditor(AuditCategory.PERFORMANCE, createSuccessResult(AuditCategory.PERFORMANCE))
       );
       orchestrator.registerModule(
         'Security',
         'security',
-        createMockAuditor(AuditCategory.SECURITY, createSuccessResult(AuditCategory.SECURITY, 78))
+        createMockAuditor(AuditCategory.SECURITY, createSuccessResult(AuditCategory.SECURITY))
       );
 
       const result = await orchestrator.runAll('https://example.com');
@@ -203,7 +196,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'SEO',
         'seo',
-        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO, 85))
+        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO))
       );
       orchestrator.registerModule(
         'Performance',
@@ -216,7 +209,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'Security',
         'security',
-        createMockAuditor(AuditCategory.SECURITY, createSuccessResult(AuditCategory.SECURITY, 78))
+        createMockAuditor(AuditCategory.SECURITY, createSuccessResult(AuditCategory.SECURITY))
       );
 
       const result = await orchestrator.runAll('https://example.com');
@@ -233,7 +226,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'SEO',
         'seo',
-        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO, 85))
+        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO))
       );
       orchestrator.registerModule(
         'Security',
@@ -263,10 +256,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'Performance',
         'performance',
-        createMockAuditor(
-          AuditCategory.PERFORMANCE,
-          createSuccessResult(AuditCategory.PERFORMANCE, 92)
-        )
+        createMockAuditor(AuditCategory.PERFORMANCE, createSuccessResult(AuditCategory.PERFORMANCE))
       );
 
       const result = await orchestrator.runAll('https://example.com');
@@ -292,7 +282,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'SEO',
         'seo',
-        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO, 85))
+        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO))
       );
 
       const startTime = Date.now();
@@ -312,9 +302,9 @@ describe('Orchestrator', () => {
         data: {
           url: 'https://example.com',
           timestamp: new Date(),
-          score: 70,
           category: AuditCategory.SEO,
           issues: [],
+          passes: [],
           status: 'partial',
         },
         warnings: ['Some pages could not be crawled'],
@@ -334,6 +324,69 @@ describe('Orchestrator', () => {
     });
   });
 
+  describe('runAll with abort signal', () => {
+    it('should not run any modules when signal is already aborted', async () => {
+      const config = createMockConfig(['seo', 'performance']);
+      const orchestrator = new Orchestrator(config);
+
+      const seoAuditor = createMockAuditor(
+        AuditCategory.SEO,
+        createSuccessResult(AuditCategory.SEO)
+      );
+      const perfAuditor = createMockAuditor(
+        AuditCategory.PERFORMANCE,
+        createSuccessResult(AuditCategory.PERFORMANCE)
+      );
+
+      orchestrator.registerModule('SEO', 'seo', seoAuditor);
+      orchestrator.registerModule('Performance', 'performance', perfAuditor);
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const result = await orchestrator.runAll('https://example.com', controller.signal);
+
+      expect(result.results).toHaveLength(0);
+      expect(seoAuditor.run).not.toHaveBeenCalled();
+      expect(perfAuditor.run).not.toHaveBeenCalled();
+    });
+
+    it('should stop remaining modules when aborted mid-execution in sequential mode', async () => {
+      const config = createMockConfig(['seo', 'performance', 'security']);
+      const orchestrator = new Orchestrator(config);
+      const controller = new AbortController();
+
+      // SEO auditor aborts the controller when it runs, simulating a timeout
+      const seoAuditor = {
+        run: vi.fn().mockImplementation(async () => {
+          controller.abort();
+          return createSuccessResult(AuditCategory.SEO);
+        }),
+      } as unknown as BaseAuditor;
+
+      const perfAuditor = createMockAuditor(
+        AuditCategory.PERFORMANCE,
+        createSuccessResult(AuditCategory.PERFORMANCE)
+      );
+      const secAuditor = createMockAuditor(
+        AuditCategory.SECURITY,
+        createSuccessResult(AuditCategory.SECURITY)
+      );
+
+      orchestrator.registerModule('SEO', 'seo', seoAuditor);
+      orchestrator.registerModule('Performance', 'performance', perfAuditor);
+      orchestrator.registerModule('Security', 'security', secAuditor);
+
+      const result = await orchestrator.runAll('https://example.com', controller.signal);
+
+      // SEO ran and completed, but Performance and Security should not have started
+      expect(seoAuditor.run).toHaveBeenCalled();
+      expect(perfAuditor.run).not.toHaveBeenCalled();
+      expect(secAuditor.run).not.toHaveBeenCalled();
+      expect(result.results).toHaveLength(1);
+    });
+  });
+
   describe('runAll with parallel mode', () => {
     it('should run all enabled modules in parallel when parallel=true', async () => {
       const config = createMockConfig(['seo', 'performance', 'security'], true);
@@ -347,7 +400,7 @@ describe('Orchestrator', () => {
           executionOrder.push('seo-start');
           await new Promise((resolve) => setTimeout(resolve, 10));
           executionOrder.push('seo-end');
-          return createSuccessResult(AuditCategory.SEO, 85);
+          return createSuccessResult(AuditCategory.SEO);
         }),
       } as unknown as BaseAuditor;
 
@@ -356,7 +409,7 @@ describe('Orchestrator', () => {
           executionOrder.push('perf-start');
           await new Promise((resolve) => setTimeout(resolve, 10));
           executionOrder.push('perf-end');
-          return createSuccessResult(AuditCategory.PERFORMANCE, 92);
+          return createSuccessResult(AuditCategory.PERFORMANCE);
         }),
       } as unknown as BaseAuditor;
 
@@ -365,7 +418,7 @@ describe('Orchestrator', () => {
           executionOrder.push('sec-start');
           await new Promise((resolve) => setTimeout(resolve, 10));
           executionOrder.push('sec-end');
-          return createSuccessResult(AuditCategory.SECURITY, 78);
+          return createSuccessResult(AuditCategory.SECURITY);
         }),
       } as unknown as BaseAuditor;
 
@@ -406,7 +459,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'SEO',
         'seo',
-        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO, 85))
+        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO))
       );
       orchestrator.registerModule(
         'Performance',
@@ -419,7 +472,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'Security',
         'security',
-        createMockAuditor(AuditCategory.SECURITY, createSuccessResult(AuditCategory.SECURITY, 78))
+        createMockAuditor(AuditCategory.SECURITY, createSuccessResult(AuditCategory.SECURITY))
       );
 
       const result = await orchestrator.runAll('https://example.com');
@@ -436,7 +489,7 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'SEO',
         'seo',
-        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO, 85))
+        createMockAuditor(AuditCategory.SEO, createSuccessResult(AuditCategory.SEO))
       );
       orchestrator.registerModule(
         'Security',
@@ -466,16 +519,39 @@ describe('Orchestrator', () => {
       orchestrator.registerModule(
         'Performance',
         'performance',
-        createMockAuditor(
-          AuditCategory.PERFORMANCE,
-          createSuccessResult(AuditCategory.PERFORMANCE, 92)
-        )
+        createMockAuditor(AuditCategory.PERFORMANCE, createSuccessResult(AuditCategory.PERFORMANCE))
       );
 
       const result = await orchestrator.runAll('https://example.com');
 
       expect(result.failedModules).toContain('SEO');
       expect(result.results).toHaveLength(1); // Only performance result
+    });
+
+    it('should not run any modules when signal is already aborted (parallel)', async () => {
+      const config = createMockConfig(['seo', 'performance'], true);
+      const orchestrator = new Orchestrator(config);
+
+      const seoAuditor = createMockAuditor(
+        AuditCategory.SEO,
+        createSuccessResult(AuditCategory.SEO)
+      );
+      const perfAuditor = createMockAuditor(
+        AuditCategory.PERFORMANCE,
+        createSuccessResult(AuditCategory.PERFORMANCE)
+      );
+
+      orchestrator.registerModule('SEO', 'seo', seoAuditor);
+      orchestrator.registerModule('Performance', 'performance', perfAuditor);
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const result = await orchestrator.runAll('https://example.com', controller.signal);
+
+      expect(result.results).toHaveLength(0);
+      expect(seoAuditor.run).not.toHaveBeenCalled();
+      expect(perfAuditor.run).not.toHaveBeenCalled();
     });
 
     it('should use sequential mode by default (parallel=false)', async () => {
@@ -489,7 +565,7 @@ describe('Orchestrator', () => {
           executionOrder.push('seo-start');
           await new Promise((resolve) => setTimeout(resolve, 5));
           executionOrder.push('seo-end');
-          return createSuccessResult(AuditCategory.SEO, 85);
+          return createSuccessResult(AuditCategory.SEO);
         }),
       } as unknown as BaseAuditor;
 
@@ -498,7 +574,7 @@ describe('Orchestrator', () => {
           executionOrder.push('perf-start');
           await new Promise((resolve) => setTimeout(resolve, 5));
           executionOrder.push('perf-end');
-          return createSuccessResult(AuditCategory.PERFORMANCE, 92);
+          return createSuccessResult(AuditCategory.PERFORMANCE);
         }),
       } as unknown as BaseAuditor;
 

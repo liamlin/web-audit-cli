@@ -80,7 +80,7 @@ const createBusinessReport = (overrides: Partial<BusinessReport> = {}): Business
       expectedOutcome: 'Better click-through rates from search results',
     }),
     createBusinessIssue({
-      id: 'ZAP-10035',
+      id: 'SEC-HEADERS-HSTS',
       title: 'Missing HSTS Header',
       description: 'Strict-Transport-Security header is not set',
       severity: AuditSeverity.HIGH,

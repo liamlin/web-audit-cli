@@ -7,6 +7,7 @@ dist/
 # Temporary files
 temp/
 .tmp/
+tmp/
 
 # Reports output (optional - users may want to commit these)
 reports/
@@ -43,6 +44,16 @@ storage/
 # Dead code analysis
 .reports/
 
+# Electron build output
+dist-electron/
+release/
+
 # Personal development notes
 .notes/
+
+# Sensitive data files
+member*.xlsx
+member_recovered*
+target_sites.xlsx
+*.zip
 

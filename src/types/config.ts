@@ -74,9 +74,6 @@ export const CliConfigSchema = z.object({
   /** Total timeout in seconds (60-3600) */
   timeout: z.number().min(60).max(3600).default(300),
 
-  /** Security scan mode: passive (faster) or active (more thorough) */
-  securityScanMode: z.enum(['passive', 'active']).default('passive'),
-
   /** Performance test mode: desktop (no throttling) or mobile-4g (throttled) */
   performanceMode: z.enum(['desktop', 'mobile-4g']).default('desktop'),
 

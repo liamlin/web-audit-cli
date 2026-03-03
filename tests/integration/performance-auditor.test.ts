@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuditCategory, AuditSeverity, type CliConfig } from '../../src/types/index.js';
-import lighthouseFixture from '../fixtures/lighthouse-result.json';
+import lighthouseFixture from '../fixtures/lighthouse-result.json' with { type: 'json' };
 
 // Mock chrome-launcher before importing PerformanceAuditor
 vi.mock('chrome-launcher', () => ({
@@ -34,10 +34,10 @@ const createConfig = (overrides: Partial<CliConfig> = {}): CliConfig => ({
   format: ['json'],
   crawlDepth: 50,
   timeout: 300,
-  securityScanMode: 'passive',
   performanceMode: 'desktop',
   language: 'en',
   verbose: false,
+  parallel: false,
   ...overrides,
 });
 
@@ -296,7 +296,6 @@ describe('PerformanceAuditor Integration Tests', () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.issues).toHaveLength(0);
-      expect(result.data!.score).toBe(100);
     });
   });
 

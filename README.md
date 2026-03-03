@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 
-A comprehensive CLI tool for website SEO, performance, and security auditing. Combines three audit engines and transforms technical findings into business-focused reports.
+A comprehensive CLI tool, web service, and desktop app for website SEO, performance, and security auditing. Combines three audit engines and transforms technical findings into business-focused reports. Available as a command-line tool, browser-based web interface, or desktop app.
 
 ## Demo
 
@@ -13,7 +13,7 @@ A comprehensive CLI tool for website SEO, performance, and security auditing. Co
   <img src="docs/images/executive-summary.png" alt="Executive Summary" width="700">
 </p>
 
-<p align="center"><em>Executive Summary with health scores and severity breakdown</em></p>
+<p align="center"><em>Executive Summary with pass/fail checks and severity breakdown</em></p>
 
 <details>
 <summary><strong>View more report sections</strong></summary>
@@ -42,16 +42,16 @@ A comprehensive CLI tool for website SEO, performance, and security auditing. Co
 
 - **SEO Audit**: Uses Google Lighthouse for crawlability, meta tags, canonicals, and robots.txt checks; validates sitemap.xml against sitemaps.org schema; detects broken links via Crawlee
 - **Performance Audit**: Uses Lighthouse to analyze Core Web Vitals (LCP, CLS, TBT) with desktop or mobile simulation
-- **Security Audit**: Runs OWASP ZAP via Docker for passive/active security scanning
+- **Security Audit**: Passive security scanner based on Mozilla Observatory and OWASP Secure Headers Project standards (checks HTTP headers, cookies, SRI, and more)
 - **Business Reports**: Transforms technical issues into stakeholder-friendly language with impact assessments
 - **Multi-language Support**: Reports available in Traditional Chinese (繁體中文) and English
+- **Desktop App**: Electron-based desktop app for non-technical users (macOS .dmg, Windows .exe, Linux AppImage)
 - **Audit Methodology**: Reports include tool credibility and testing methodology for transparency
 
 ## Requirements
 
 - **Node.js v20+** (required - enforced at runtime)
 - **Chrome/Chromium** (optional - for SEO and performance auditing via Lighthouse)
-- **Docker** (optional - for security scanning via OWASP ZAP)
 
 ### Environment Detection
 
@@ -59,7 +59,6 @@ The CLI automatically checks for dependencies at startup:
 
 - If Node.js version is below 20.0, the CLI exits with an error and installation instructions
 - If Chrome is not found, SEO runs without Lighthouse checks and performance module is skipped
-- If Docker is not installed or not running, the security module is skipped with a warning
 
 Use `--verbose` to see a detailed environment summary before the audit runs.
 
@@ -92,19 +91,18 @@ web-audit --url https://example.com --verbose
 
 ## CLI Options
 
-| Option                     | Description                               | Default     |
-| -------------------------- | ----------------------------------------- | ----------- |
-| `-u, --url <url>`          | Target URL to audit (required)            | -           |
-| `-o, --output <dir>`       | Output directory for reports              | `./reports` |
-| `-m, --modules <list>`     | Modules to run (seo,performance,security) | All modules |
-| `-f, --format <list>`      | Output formats (pdf,json,html)            | `html`      |
-| `-d, --crawl-depth <n>`    | Max pages to crawl for SEO (1-100)        | `50`        |
-| `-t, --timeout <seconds>`  | Total timeout (60-3600)                   | `300`       |
-| `-s, --security-scan-mode` | Security scan mode (passive/active)       | `passive`   |
-| `-p, --performance-mode`   | Performance test mode (desktop/mobile-4g) | `desktop`   |
-| `-l, --language <lang>`    | Report language (zh-TW/en)                | `en`        |
-| `-v, --verbose`            | Enable detailed logging                   | `false`     |
-| `--parallel`               | Run audit modules in parallel             | `false`     |
+| Option                    | Description                               | Default     |
+| ------------------------- | ----------------------------------------- | ----------- |
+| `-u, --url <url>`         | Target URL to audit (required)            | -           |
+| `-o, --output <dir>`      | Output directory for reports              | `./reports` |
+| `-m, --modules <list>`    | Modules to run (seo,performance,security) | All modules |
+| `-f, --format <list>`     | Output formats (pdf,json,html)            | `html`      |
+| `-d, --crawl-depth <n>`   | Max pages to crawl for SEO (1-100)        | `50`        |
+| `-t, --timeout <seconds>` | Total timeout (60-3600)                   | `300`       |
+| `-p, --performance-mode`  | Performance test mode (desktop/mobile-4g) | `desktop`   |
+| `-l, --language <lang>`   | Report language (zh-TW/en)                | `en`        |
+| `-v, --verbose`           | Enable detailed logging                   | `false`     |
+| `--parallel`              | Run audit modules in parallel             | `false`     |
 
 ## Output
 
@@ -112,7 +110,7 @@ Report filenames include the domain for easy identification (e.g., `audit-exampl
 
 The tool generates reports with:
 
-- **Category Scores**: Individual scores for SEO, Performance, and Security
+- **Pass/Fail Summary**: What's working and what needs attention per category
 - **Executive Summary**: Business-friendly overview of findings
 - **Audit Methodology**: Tools used, their credibility, and test conditions (desktop/mobile)
 - **Priority Actions**: Top 5 issues to address
@@ -129,14 +127,71 @@ The HTML report features a slide-like presentation with keyboard navigation (arr
 
 The test conditions are clearly labeled in reports to ensure transparency when comparing results.
 
+## Web Mode
+
+In addition to the CLI, the tool can run as a web service with a browser-based interface.
+
+### Local Development
+
+```bash
+npm run build
+npm run start:web
+# Open http://localhost:8080
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+| -------- | ----------- | ------- |
+| `PORT`   | Server port | `8080`  |
+
+### API Endpoints
+
+| Endpoint                  | Method | Description            |
+| ------------------------- | ------ | ---------------------- |
+| `/api/health`             | GET    | Health check (no auth) |
+| `/api/audit`              | POST   | Start audit            |
+| `/api/audit/:id/progress` | GET    | SSE progress stream    |
+| `/api/audit/:id/result`   | GET    | JSON result            |
+| `/api/audit/:id/report`   | GET    | HTML report            |
+| `/api/audit/:id/pdf`      | GET    | PDF download           |
+
+## Desktop App
+
+The tool is also available as a native desktop app via Electron, suitable for non-technical users who prefer a GUI.
+
+### Running in Development
+
+```bash
+npm run start:electron
+```
+
+This builds both the main app and the Electron code, then launches a native window pointed at the web interface.
+
+### Packaging
+
+```bash
+npm run pack:mac     # macOS .dmg
+npm run pack:win     # Windows .exe installer
+npm run pack:linux   # Linux AppImage
+```
+
+### Notes
+
+- **Chrome/Chromium required**: The desktop app runs audit engines that call Chrome directly on the host machine.
+- **SSRF guard disabled**: In desktop mode, the SSRF guard is intentionally disabled since users scan their own targets.
+
 ## Development
 
 ```bash
-npm run dev          # Watch mode
-npm run build        # Build
-npm run test         # Run tests
-npm run test:watch   # Watch tests
-npm run test:coverage # Coverage report
+npm run dev             # Watch mode
+npm run build           # Build
+npm run build:electron  # Build Electron code
+npm run test            # Run tests
+npm run test:watch      # Watch tests
+npm run test:coverage   # Coverage report
+npm run start:web       # Start web server
+npm run start:electron  # Launch desktop app
 ```
 
 ## Architecture

@@ -11,6 +11,7 @@ import {
   AuditCategory,
   AuditSeverity,
   type AuditIssue,
+  type AuditPass,
   type AuditResult,
   type ModuleResult,
 } from '../../types/index.js';
@@ -42,8 +43,6 @@ const THRESHOLDS = {
   LCP: { poor: 4000, needsImprovement: 2500 }, // milliseconds
   CLS: { poor: 0.25, needsImprovement: 0.1 },
   TBT: { poor: 600, needsImprovement: 300 }, // milliseconds
-  FCP: { poor: 3000, needsImprovement: 1800 }, // milliseconds
-  SI: { poor: 5800, needsImprovement: 3400 }, // milliseconds
 };
 
 /**
@@ -177,20 +176,52 @@ export class PerformanceAuditor extends BaseAuditor {
       // Combine all issues
       const allIssues = [...issues, ...opportunities];
 
+      // Build passes for metrics that meet Google's thresholds
+      const passes: AuditPass[] = [];
+      if (metrics.lcp <= THRESHOLDS.LCP.needsImprovement) {
+        passes.push({
+          id: 'LCP-GOOD',
+          title: `LCP is ${(metrics.lcp / 1000).toFixed(1)}s (good)`,
+          category: AuditCategory.PERFORMANCE,
+          source: 'Google Lighthouse',
+        });
+      }
+      if (metrics.cls <= THRESHOLDS.CLS.needsImprovement) {
+        passes.push({
+          id: 'CLS-GOOD',
+          title: `CLS is ${metrics.cls.toFixed(3)} (good)`,
+          category: AuditCategory.PERFORMANCE,
+          source: 'Google Lighthouse',
+        });
+      }
+      if (metrics.tbt <= THRESHOLDS.TBT.needsImprovement) {
+        passes.push({
+          id: 'TBT-GOOD',
+          title: `TBT is ${Math.round(metrics.tbt)}ms (good)`,
+          category: AuditCategory.PERFORMANCE,
+          source: 'Google Lighthouse',
+        });
+      }
+
       // Include test spec in result metadata
       const testSpecLabel = this.getTestSpecLabel();
 
-      return this.createResult(url, allIssues, {
-        lighthouseScore: metrics.score,
-        lcp: metrics.lcp,
-        cls: metrics.cls,
-        tbt: metrics.tbt,
-        fcp: metrics.fcp,
-        si: metrics.si,
-        performanceMode: this.config.performanceMode,
-        testSpec: testSpecLabel.en,
-        testSpecZh: testSpecLabel['zh-TW'],
-      });
+      return this.createResult(
+        url,
+        allIssues,
+        {
+          lighthouseScore: metrics.score,
+          lcp: metrics.lcp,
+          cls: metrics.cls,
+          tbt: metrics.tbt,
+          fcp: metrics.fcp,
+          si: metrics.si,
+          performanceMode: this.config.performanceMode,
+          testSpec: testSpecLabel.en,
+          testSpecZh: testSpecLabel['zh-TW'],
+        },
+        passes
+      );
     });
   }
 
@@ -201,11 +232,11 @@ export class PerformanceAuditor extends BaseAuditor {
     const audits = lhr.audits;
 
     return {
-      lcp: audits['largest-contentful-paint']?.numericValue ?? 0,
-      cls: audits['cumulative-layout-shift']?.numericValue ?? 0,
-      tbt: audits['total-blocking-time']?.numericValue ?? 0,
-      fcp: audits['first-contentful-paint']?.numericValue ?? 0,
-      si: audits['speed-index']?.numericValue ?? 0,
+      lcp: audits['largest-contentful-paint']?.numericValue ?? NaN,
+      cls: audits['cumulative-layout-shift']?.numericValue ?? NaN,
+      tbt: audits['total-blocking-time']?.numericValue ?? NaN,
+      fcp: audits['first-contentful-paint']?.numericValue ?? NaN,
+      si: audits['speed-index']?.numericValue ?? NaN,
       score: (lhr.categories.performance?.score ?? 0) * 100,
     };
   }

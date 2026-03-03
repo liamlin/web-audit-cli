@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`web-audit-cli` is a Node.js CLI tool that performs SEO, performance, and security audits on websites. It combines three audit engines and transforms technical findings into business-focused reports with a "Current State - Threat - Optimization - Expected Outcome" matrix.
+`web-audit-cli` is a Node.js CLI tool, web service, and Electron desktop app that performs SEO, performance, and security audits on websites. It combines three audit engines and transforms technical findings into business-focused reports with a "Current State - Threat - Optimization - Expected Outcome" matrix. Available as a CLI tool, browser-based web interface, or desktop app (.dmg/.exe for non-technical users).
 
 ## Tech Stack
 
@@ -13,7 +13,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **CLI**: Commander.js + Inquirer.js + ora + chalk
 - **SEO Engine**: Lighthouse SEO audits + Crawlee (broken links) + sitemap.xml validator
 - **Performance Engine**: Lighthouse v12 + chrome-launcher (requires Chrome/Chromium)
-- **Security Engine**: OWASP ZAP via Docker (requires Docker)
+- **Security Engine**: Passive Node.js scanner (HTTP headers, cookies, HTML) based on Mozilla Observatory and OWASP Secure Headers Project standards
+- **Desktop**: Electron + electron-builder (wraps Hono server in native window)
+- **Web Server**: Hono + @hono/node-server (SSE streaming)
 - **Reporting**: Handlebars + Puppeteer (PDF generation)
 - **Validation**: Zod for runtime type validation
 - **Testing**: Vitest
@@ -26,19 +28,24 @@ The CLI checks for required dependencies at startup and provides helpful feedbac
 | --------------- | ----------------- | ----------------------------------------- |
 | Node.js 20+     | All modules       | Exits with error and install instructions |
 | Chrome/Chromium | SEO + Performance | Module skipped with warning               |
-| Docker          | Security module   | Module skipped with warning               |
 
 In **verbose mode** (`--verbose`), the CLI displays an environment summary showing the status of all dependencies before running the audit.
 
 ## Build & Development Commands
 
 ```bash
-npm run build        # Compile TypeScript
-npm run dev          # Development mode with watch
-npm run test         # Run tests
-npm run test:watch   # Run tests in watch mode
-npm run test:coverage # Run tests with coverage
-npm run lint         # Lint code
+npm run build           # Compile TypeScript (src → dist)
+npm run build:electron  # Compile Electron code (electron → dist-electron)
+npm run dev             # Development mode with watch
+npm run test            # Run tests
+npm run test:watch      # Run tests in watch mode
+npm run test:coverage   # Run tests with coverage
+npm run lint            # Lint code
+npm run start:web       # Start web server (after build)
+npm run start:electron  # Build + launch Electron desktop app
+npm run pack:mac        # Package as macOS .dmg
+npm run pack:win        # Package as Windows .exe installer
+npm run pack:linux      # Package as Linux AppImage
 ```
 
 ## Version Management
@@ -80,7 +87,7 @@ Orchestrator (sequential execution, fault-tolerant)
 ┌─────────────┬─────────────┬─────────────┐
 │ SeoAuditor  │ Performance │ Security    │
 │ (Lighthouse │ Auditor     │ Auditor     │
-│ + Crawlee)  │ (Lighthouse)│ (ZAP/Docker)│
+│ + Crawlee)  │ (Lighthouse)│ (Passive)   │
 └──────┬──────┴──────┬──────┴──────┬──────┘
        │             │             │
        └─────────────┼─────────────┘
@@ -94,6 +101,29 @@ Orchestrator (sequential execution, fault-tolerant)
               ReportGenerator (PDF/HTML/JSON)
 ```
 
+### Web Mode Data Flow
+
+```
+Browser → Hono Server
+    ↓
+POST /api/audit → AuditService (queue + job store)
+    ↓
+Orchestrator (with ProgressCallback → SSE stream)
+    ↓
+┌─────────────┬─────────────┬──────────────┐
+│ SeoAuditor  │ Performance │ Security     │
+│ (Lighthouse │ Auditor     │ Auditor      │
+│ + Crawlee)  │ (Lighthouse)│ (Passive)    │
+└──────┬──────┴──────┬──────┴──────┬───────┘
+       └─────────────┼─────────────┘
+                     ↓
+              MatrixEngine → BusinessReport
+                     ↓
+              ReportGenerator → HTML + PDF (in-memory)
+                     ↓
+              GET /api/audit/:id/report|pdf|result
+```
+
 ### Key Modules
 
 - `src/core/base-auditor.ts` - Abstract base class all auditors extend
@@ -103,17 +133,28 @@ Orchestrator (sequential execution, fault-tolerant)
 - `src/utils/i18n.ts` - Translation system for report strings
 - `src/modules/seo/` - Lighthouse SEO audits (crawlability, meta, canonicals, robots.txt), sitemap.xml validation, Crawlee broken link detection
 - `src/modules/performance/` - Lighthouse integration for Core Web Vitals (LCP, CLS, TBT), supports desktop/mobile modes
-- `src/modules/security/` - Docker-based OWASP ZAP passive/active scanning
+- `src/modules/security/` - Passive security scanner (headers, cookies, HTML) based on Mozilla Observatory and OWASP standards
+- `src/modules/security/scanner.ts` - SecurityScanner class: checks HTTP headers, CSP quality, cookie attributes, SRI, cross-domain scripts, vulnerable libraries
+- `electron/main.ts` - Electron main process: starts Hono server, creates BrowserWindow
+- `electron/preload.ts` - Context bridge (isElectron flag, version)
+- `electron/menu.ts` - Native app menu (File, Edit, View, Help)
 - `src/modules/reporter/` - Handlebars templates + Puppeteer PDF generation
+- `src/server.ts` - Web server entry point
+- `src/web/app.ts` - Hono app with secure headers and static file serving
+- `src/web/routes/audit.ts` - API endpoints (audit CRUD, SSE progress, report download)
+- `src/web/services/audit-service.ts` - Job queue, progress emitter, report generation
+- `src/web/public/index.html` - Single-page frontend (Tailwind CDN, native EventSource)
+- `src/utils/ssrf-guard.ts` - Blocks private/internal IP scanning in web mode
 
 ### Core Types
 
 All modules return `ModuleResult<AuditResult>` for consistent error handling:
 
 - `AuditIssue` - Single finding with id, title, severity, category, suggestion
-- `AuditResult` - Module result with score (0-100), issues array, status
+- `AuditPass` - A check that passed: id, title, category, source
+- `AuditResult` - Module result with issues array, passes array, status
 - `BusinessIssue` - Extended with businessImpact, fixDifficulty, estimatedEffort, expectedOutcome
-- `BusinessReport` - Final report with healthScore, categoryScores, executiveSummary, methodology
+- `BusinessReport` - Final report with executiveSummary, issues, passes, methodology
 - `MethodologyInfo` - Tools used, tests performed, and test conditions (desktop/mobile)
 - `LocalizedString` - `{ en: string; 'zh-TW': string }` for bilingual content
 
@@ -121,17 +162,13 @@ All modules return `ModuleResult<AuditResult>` for consistent error handling:
 
 `CRITICAL > HIGH > MEDIUM > LOW > INFO`
 
-Score deduction: CRITICAL (-20), HIGH (-10), MEDIUM (-5), LOW (-2), INFO (0)
-
-### Health Score Weights
-
-Security (40%) > Performance (35%) > SEO (25%)
+Issues are sorted by severity. There are no numerical scores — the tool reports what passes and what fails according to the underlying standards.
 
 ## Critical Implementation Patterns
 
 ### Resource Cleanup
 
-Chrome (Lighthouse) and Docker (ZAP) processes MUST be killed in `finally` blocks:
+Chrome (Lighthouse) processes MUST be killed in `finally` blocks:
 
 ```typescript
 let chrome: LaunchedChrome | null = null;
@@ -147,16 +184,26 @@ try {
 
 Individual module failures should not crash the entire audit. Use `ModuleResult` wrapper with `status: 'partial' | 'skipped' | 'failed'`.
 
-### Docker Check
+### Security Module
 
-Security module must gracefully degrade if Docker is not installed:
+The security module uses a self-contained passive scanner (`SecurityScanner` in `src/modules/security/scanner.ts`). It makes a single HTTP request and analyzes:
 
-```typescript
-const dockerInstalled = await checkDockerInstalled();
-if (!dockerInstalled) {
-  return { success: false, status: 'skipped', ... };
-}
-```
+- HTTP security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Permissions-Policy, Referrer-Policy, CORS, COOP/COEP/CORP)
+- CSP quality (detects unsafe-inline, unsafe-eval, wildcards)
+- Cookie security attributes (Secure, HttpOnly, SameSite, domain scoping)
+- HTML body (SRI on external resources, cross-domain scripts, vulnerable JS libraries)
+- Timestamp disclosure
+
+All checks produce `SEC-*` issue IDs that map to the knowledge base. Each check also records a pass when the site meets the standard.
+
+### Desktop Mode (Electron)
+
+When `ELECTRON_MODE=true` is set (automatically by `electron/main.ts`):
+
+- SSRF guard is disabled (user scans their own targets)
+- Security scanner skips SSRF checks (user scans their own targets)
+
+The desktop app starts a Hono server on a random localhost port, then loads it in a BrowserWindow. The existing frontend, SSE streaming, and audit service work unchanged.
 
 ### Chrome Check
 
@@ -171,7 +218,7 @@ if (!chromeCheck.installed) {
 
 ### Cross-Platform Paths
 
-Always use `path.resolve()` for Docker volume mounts and temp directories.
+Always use `path.resolve()` for temp directories and output paths.
 
 ## CLI Options
 
@@ -182,7 +229,6 @@ Always use `path.resolve()` for Docker volume mounts and temp directories.
 --format <list>        Output formats: pdf,json,html (default: html)
 --crawl-depth <n>      SEO crawl depth (default: 50, max: 100)
 --timeout <seconds>    Total timeout (default: 300, max: 3600)
---security-scan-mode   passive | active (default: passive)
 --performance-mode     desktop | mobile-4g (default: desktop)
 --language             zh-TW | en (default: en)
 --parallel             Run modules in parallel (default: false)
@@ -230,9 +276,10 @@ When adding new knowledge base entries, always provide both languages:
 
 ## Testing Strategy
 
-- Unit tests: Zod schema validation, score calculation, knowledge-base mapping
-- Integration tests: Mock HTTP responses (nock), mock Lighthouse LHR JSON, mock Docker/ZAP output
-- Avoid real Chrome/Docker in CI - use pre-recorded fixtures
+- Unit tests: Zod schema validation, knowledge-base mapping, SSRF guard, security scanner, audit service
+- Integration tests: Mock HTTP responses, mock Lighthouse LHR JSON, mock SecurityScanner, Hono test client for API routes
+- Avoid real Chrome in CI - use pre-recorded fixtures
+- Web API tests use Hono's `app.request()` with mocked auditor/reporter modules
 
 ## Running the CLI
 
@@ -254,6 +301,71 @@ web-audit --url https://example.com --modules seo,performance --format pdf,json
 3. Add the business context entry in `src/core/knowledge-base.ts` with both `en` and `zh-TW` translations
 4. The MatrixEngine will automatically enrich issues with localized business context
 
+## Frontend-Backend Contract
+
+**IMPORTANT**: The frontend (`src/web/public/index.html`) and backend API are tightly coupled. When changing one, check the other.
+
+### Health Endpoint Contract
+
+`GET /api/health` returns:
+
+```typescript
+{
+  status: 'ok';
+  securityAvailable: boolean; // always true (passive scanner is always available)
+  securityMethod: 'passive';
+  timestamp: string; // ISO 8601
+}
+```
+
+The frontend calls this on page load to show/hide the Security module checkbox. If `securityAvailable` is false, the Security checkbox is hidden.
+
+### Audit Request Contract
+
+`POST /api/audit` body (validated with Zod in `src/web/routes/audit.ts`):
+
+```typescript
+{
+  url: string;                                    // required, http/https only
+  modules?: ('seo' | 'performance' | 'security')[]; // default: all three
+  language?: 'en' | 'zh-TW';                     // default: 'en'
+  performanceMode?: 'desktop' | 'mobile-4g';     // default: 'desktop'
+  crawlDepth?: number;                           // default: 30, max: 50
+  parallel?: boolean;                             // default: false
+}
+```
+
+### SSE Progress Event Contract
+
+`GET /api/audit/:id/progress` sends SSE events:
+
+```typescript
+// event: 'progress'
+{
+  module: string;   // 'seo' | 'performance' | 'security' | 'system'
+  status: 'running' | 'complete' | 'partial' | 'skipped' | 'failed';
+  message: string;
+  timestamp: number;
+}
+
+// event: 'done' — signals stream end
+{ status: 'complete' | 'failed'; error?: string; }
+```
+
+The frontend maps `module` values to UI elements by ID (`dot-seo`, `status-seo`, etc.).
+
+### What Must Change Together
+
+| If you change...                        | Also update...                                                    |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| Module names (seo/performance/security) | Frontend checkbox values, progress element IDs, Zod schema        |
+| Health response shape                   | Frontend `fetch('/api/health')` handler                           |
+| Progress event fields                   | Frontend `updateModuleProgress()` function                        |
+| Status values (running/complete/etc.)   | Frontend switch statement in `updateModuleProgress()`             |
+| Audit request fields                    | Frontend form submission in `start-btn` click handler, Zod schema |
+| Result response shape (BusinessReport)  | Frontend `showResults()` function                                 |
+| New API endpoints                       | Frontend fetch calls                                              |
+
 ## Documentation Rules
 
 **IMPORTANT**: Documentation must always be kept in sync with implementations.
@@ -264,5 +376,7 @@ When making code changes that affect:
 - Environment requirements → Update both docs
 - New modules or features → Document in both files
 - Architecture changes → Update the architecture section
+- API contract changes → Update the Frontend-Backend Contract section above
+- Frontend behavior → Check if backend contract needs updating
 
 Always verify docs are accurate before completing a task.

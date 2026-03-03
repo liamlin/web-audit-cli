@@ -6,6 +6,7 @@
 import type {
   AuditCategory,
   AuditIssue,
+  AuditPass,
   AuditResult,
   AuditSeverity,
   CliConfig,
@@ -56,47 +57,20 @@ export abstract class BaseAuditor {
   }
 
   /**
-   * Calculate score based on issues found.
-   * Uses a deduction-based scoring system.
-   */
-  protected calculateScore(issues: AuditIssue[]): number {
-    let score = 100;
-
-    for (const issue of issues) {
-      switch (issue.severity) {
-        case 'CRITICAL':
-          score -= 20;
-          break;
-        case 'HIGH':
-          score -= 10;
-          break;
-        case 'MEDIUM':
-          score -= 5;
-          break;
-        case 'LOW':
-          score -= 2;
-          break;
-        // INFO doesn't deduct points
-      }
-    }
-
-    return Math.max(0, score);
-  }
-
-  /**
    * Create a successful AuditResult.
    */
   protected createResult(
     url: string,
     issues: AuditIssue[],
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    passes: AuditPass[] = []
   ): AuditResult {
     const result: AuditResult = {
       url,
       timestamp: new Date(),
-      score: this.calculateScore(issues),
       category: this.category,
       issues,
+      passes,
       status: 'success',
     };
     if (metadata) {
@@ -112,14 +86,15 @@ export abstract class BaseAuditor {
     url: string,
     issues: AuditIssue[],
     errorMessage: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    passes: AuditPass[] = []
   ): AuditResult {
     const result: AuditResult = {
       url,
       timestamp: new Date(),
-      score: this.calculateScore(issues),
       category: this.category,
       issues,
+      passes,
       status: 'partial',
       errorMessage,
     };
@@ -136,9 +111,9 @@ export abstract class BaseAuditor {
     return {
       url,
       timestamp: new Date(),
-      score: 0,
       category: this.category,
       issues: [],
+      passes: [],
       status: 'skipped',
       errorMessage,
     };
@@ -151,9 +126,9 @@ export abstract class BaseAuditor {
     return {
       url,
       timestamp: new Date(),
-      score: 0,
       category: this.category,
       issues: [],
+      passes: [],
       status: 'failed',
       errorMessage,
     };

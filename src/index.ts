@@ -11,7 +11,6 @@ import chalk from 'chalk';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs-extra';
-import inquirer from 'inquirer';
 
 import { CliConfigSchema, type CliConfig } from './types/config.js';
 
@@ -38,7 +37,7 @@ import {
   logSuccess,
 } from './utils/logger.js';
 import { checkChromeInstalled } from './modules/performance/chrome-detector.js';
-import { checkDockerInstalled, checkDockerRunning } from './modules/security/docker-runner.js';
+import { generateReportFilename } from './utils/report-filename.js';
 
 /**
  * Minimum required Node.js version.
@@ -52,7 +51,6 @@ const MIN_NODE_VERSION = '20.0.0';
 interface EnvironmentStatus {
   nodeVersion: { ok: boolean; current: string; required: string };
   chrome: { installed: boolean; version?: string; path?: string };
-  docker: { installed: boolean; running: boolean };
 }
 
 /**
@@ -101,14 +99,7 @@ function checkNodeVersion(): { ok: boolean; current: string; required: string } 
 async function checkEnvironment(): Promise<EnvironmentStatus> {
   const nodeVersion = checkNodeVersion();
 
-  // Check Chrome and Docker in parallel
-  const [chromeResult, dockerInstalled] = await Promise.all([
-    checkChromeInstalled(),
-    checkDockerInstalled(),
-  ]);
-
-  // Only check if Docker is running if it's installed
-  const dockerRunning = dockerInstalled ? await checkDockerRunning() : false;
+  const chromeResult = await checkChromeInstalled();
 
   const chromeStatus: EnvironmentStatus['chrome'] = {
     installed: chromeResult.installed,
@@ -123,10 +114,6 @@ async function checkEnvironment(): Promise<EnvironmentStatus> {
   return {
     nodeVersion,
     chrome: chromeStatus,
-    docker: {
-      installed: dockerInstalled,
-      running: dockerRunning,
-    },
   };
 }
 
@@ -150,21 +137,6 @@ function showEnvironmentSummary(env: EnvironmentStatus): void {
     : chalk.yellow('Not found (performance audit will be skipped)');
   console.log(`    ${chromeIcon} Chrome: ${chromeStatus}`);
 
-  // Docker
-  let dockerIcon: string;
-  let dockerStatus: string;
-  if (env.docker.installed && env.docker.running) {
-    dockerIcon = chalk.green('✔');
-    dockerStatus = chalk.green('Installed and running');
-  } else if (env.docker.installed) {
-    dockerIcon = chalk.yellow('○');
-    dockerStatus = chalk.yellow('Installed but not running (security audit will be skipped)');
-  } else {
-    dockerIcon = chalk.yellow('○');
-    dockerStatus = chalk.yellow('Not found (security audit will be skipped)');
-  }
-  console.log(`    ${dockerIcon} Docker: ${dockerStatus}`);
-
   console.log('');
 }
 
@@ -182,41 +154,6 @@ function showBanner(): void {
 }
 
 /**
- * Display active scan warning and prompt for confirmation.
- * Returns true if user confirms, false otherwise.
- */
-async function confirmActiveScan(): Promise<boolean> {
-  console.log(
-    chalk.yellow.bold(`
-╔══════════════════════════════════════════════════════════════════╗
-║  WARNING: Active security scanning enabled!                      ║
-╠══════════════════════════════════════════════════════════════════╣
-║  Active scanning sends attack payloads to the target server      ║
-║  which may:                                                      ║
-║                                                                  ║
-║    - Cause high server load                                      ║
-║    - Trigger security alerts/blocks                              ║
-║    - Potentially corrupt data in test environments               ║
-║                                                                  ║
-║  Only use active scanning on systems you own and have            ║
-║  permission to test.                                             ║
-╚══════════════════════════════════════════════════════════════════╝
-`)
-  );
-
-  const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
-    {
-      type: 'confirm',
-      name: 'confirmed',
-      message: 'Do you want to proceed with active security scanning?',
-      default: false,
-    },
-  ]);
-
-  return confirmed;
-}
-
-/**
  * Check if a URL is reachable.
  */
 async function checkUrlReachable(url: string): Promise<boolean> {
@@ -231,21 +168,7 @@ async function checkUrlReachable(url: string): Promise<boolean> {
   }
 }
 
-/**
- * Sanitize a URL's domain for use in a filename.
- */
-function sanitizeDomainForFilename(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.hostname
-      .replace(/\./g, '-')
-      .replace(/[^a-zA-Z0-9-]/g, '')
-      .toLowerCase()
-      .slice(0, 50); // Limit length
-  } catch {
-    return 'unknown';
-  }
-}
+// sanitizeDomainForFilename moved to src/utils/report-filename.ts
 
 /**
  * Display the results summary.
@@ -255,27 +178,13 @@ function showSummary(report: import('./types/audit.js').BusinessReport, outputPa
   const highCount = report.issues.filter((i) => i.severity === 'HIGH').length;
   const mediumCount = report.issues.filter((i) => i.severity === 'MEDIUM').length;
 
-  // Build category scores section dynamically (only show modules that were run)
-  const scoreLines: string[] = [];
-  if (report.categoryScores.seo !== null) {
-    scoreLines.push(`    SEO:         ${report.categoryScores.seo}`);
-  }
-  if (report.categoryScores.performance !== null) {
-    scoreLines.push(`    Performance: ${report.categoryScores.performance}`);
-  }
-  if (report.categoryScores.security !== null) {
-    scoreLines.push(`    Security:    ${report.categoryScores.security}`);
-  }
-
   console.log(
     chalk.green(`
 ══════════════════════════════════════════
   📊 Audit Results Summary
 ══════════════════════════════════════════
-  Category Scores:
-${scoreLines.join('\n')}
-
-  Issues Found: ${report.issues.length}
+  Checks Passed: ${report.passes.length}
+  Issues Found:  ${report.issues.length}
     - Critical: ${criticalCount}
     - High:     ${highCount}
     - Medium:   ${mediumCount}
@@ -309,7 +218,6 @@ function parseCliArgs(options: Record<string, unknown>): CliConfig {
     format,
     crawlDepth: options.crawlDepth ? parseInt(options.crawlDepth as string, 10) : undefined,
     timeout: options.timeout ? parseInt(options.timeout as string, 10) : undefined,
-    securityScanMode: options.securityScanMode as 'passive' | 'active' | undefined,
     performanceMode: options.performanceMode as 'desktop' | 'mobile-4g' | undefined,
     language: options.language as 'zh-TW' | 'en' | undefined,
     verbose: options.verbose as boolean | undefined,
@@ -366,11 +274,6 @@ async function main(): Promise<void> {
     .option('-d, --crawl-depth <number>', 'Maximum number of pages to crawl for SEO (1-100)', '50')
     .option('-t, --timeout <seconds>', 'Total timeout in seconds (60-3600)', '300')
     .option(
-      '-s, --security-scan-mode <mode>',
-      'Security scan mode: "passive" (safe, observes traffic only) or "active" (sends attack payloads - use only on systems you own)',
-      'passive'
-    )
-    .option(
       '-p, --performance-mode <mode>',
       'Performance test mode: "desktop" (no throttling, default) or "mobile-4g" (simulates mobile 4G conditions)',
       'desktop'
@@ -403,19 +306,8 @@ async function main(): Promise<void> {
           showEnvironmentSummary(envStatus);
         } else {
           // In non-verbose mode, still warn about missing dependencies that affect requested modules
-          const warnings: string[] = [];
           if (config.modules.includes('performance') && !envStatus.chrome.installed) {
-            warnings.push('Chrome not found - performance audit will be skipped');
-          }
-          if (config.modules.includes('security') && !envStatus.docker.installed) {
-            warnings.push('Docker not found - security audit will be skipped');
-          } else if (config.modules.includes('security') && !envStatus.docker.running) {
-            warnings.push('Docker not running - security audit will be skipped');
-          }
-          for (const warning of warnings) {
-            console.log(chalk.yellow(`  ⚠ ${warning}`));
-          }
-          if (warnings.length > 0) {
+            console.log(chalk.yellow('  ⚠ Chrome not found - performance audit will be skipped'));
             console.log('');
           }
         }
@@ -430,19 +322,6 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         succeedSpinner('URL is reachable');
-
-        // Check if active security scanning is enabled and prompt for confirmation
-        if (config.modules.includes('security') && config.securityScanMode === 'active') {
-          const confirmed = await confirmActiveScan();
-          if (!confirmed) {
-            console.log(
-              chalk.yellow('\nActive scan cancelled. You can run with passive mode instead:')
-            );
-            console.log(chalk.gray('  web-audit -u ' + config.url + ' -s passive\n'));
-            process.exit(0);
-          }
-          console.log(chalk.green('\nProceeding with active security scan...\n'));
-        }
 
         // Set up orchestrator
         const orchestrator = new Orchestrator(config);
@@ -477,9 +356,7 @@ async function main(): Promise<void> {
 
         // Generate output files
         const reporter = new ReportGenerator(config.language);
-        const timestamp = Date.now();
-        const domain = sanitizeDomainForFilename(config.url);
-        const baseFilename = `audit-${domain}-${timestamp}`;
+        const baseFilename = generateReportFilename(config.url);
 
         await fs.ensureDir(config.output);
 

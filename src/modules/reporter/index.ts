@@ -22,6 +22,12 @@ import { type Locale, createTranslator, type TranslationStrings } from '../../ut
  * Returns undefined if Chrome is not found.
  */
 function findChromePath(): string | undefined {
+  // Honor explicit CHROME_PATH (set by Electron, Docker, or CI environments)
+  const envPath = process.env['CHROME_PATH'];
+  if (envPath && fs.existsSync(envPath)) {
+    return envPath;
+  }
+
   const paths: string[] = [];
 
   if (process.platform === 'darwin') {
@@ -77,6 +83,7 @@ const __dirname = path.dirname(__filename);
  * Report Generator for creating PDF/HTML/JSON reports.
  */
 export class ReportGenerator {
+  private handlebars: ReturnType<typeof Handlebars.create>;
   private template: Handlebars.TemplateDelegate<BusinessReport>;
   private locale: Locale;
   private t: (key: keyof TranslationStrings, params?: Record<string, string | number>) => string;
@@ -84,6 +91,7 @@ export class ReportGenerator {
   constructor(locale: Locale = 'zh-TW') {
     this.locale = locale;
     this.t = createTranslator(locale);
+    this.handlebars = Handlebars.create();
     this.registerHelpers();
     this.template = this.loadTemplate();
   }
@@ -93,7 +101,7 @@ export class ReportGenerator {
    */
   private registerHelpers(): void {
     // Translation helper
-    Handlebars.registerHelper(
+    this.handlebars.registerHelper(
       't',
       (key: keyof TranslationStrings, options?: Handlebars.HelperOptions) => {
         // Extract hash parameters for template substitution
@@ -103,7 +111,7 @@ export class ReportGenerator {
     );
 
     // Format date based on locale
-    Handlebars.registerHelper('formatDate', (date: Date) => {
+    this.handlebars.registerHelper('formatDate', (date: Date) => {
       const locale = this.locale === 'zh-TW' ? 'zh-TW' : 'en-US';
       return new Intl.DateTimeFormat(locale, {
         year: 'numeric',
@@ -115,61 +123,50 @@ export class ReportGenerator {
     });
 
     // Lowercase string
-    Handlebars.registerHelper('lowercase', (str: string) => str?.toLowerCase() ?? '');
+    this.handlebars.registerHelper('lowercase', (str: string) => str?.toLowerCase() ?? '');
 
     // Equality check
-    Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
-
-    // Health score color
-    Handlebars.registerHelper('healthScoreColor', (score: number) => {
-      if (score >= 80) {
-        return 'text-green-600';
-      }
-      if (score >= 60) {
-        return 'text-yellow-600';
-      }
-      return 'text-red-600';
-    });
-
-    // Score color
-    Handlebars.registerHelper('scoreColor', (score: number) => {
-      if (score >= 80) {
-        return 'text-green-600';
-      }
-      if (score >= 60) {
-        return 'text-yellow-500';
-      }
-      return 'text-red-500';
-    });
+    this.handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
 
     // Category name mapping (localized)
-    Handlebars.registerHelper('categoryName', (category: string) => {
+    this.handlebars.registerHelper('categoryName', (category: string) => {
       const key = `category.${category.toLowerCase()}` as keyof TranslationStrings;
       return this.t(key) || category;
     });
 
     // Severity label (localized)
-    Handlebars.registerHelper('severityLabel', (severity: string) => {
+    this.handlebars.registerHelper('severityLabel', (severity: string) => {
       const key = `severity.${severity.toLowerCase()}` as keyof TranslationStrings;
       return this.t(key) || severity;
     });
 
     // Fix difficulty label (localized)
-    Handlebars.registerHelper('difficultyLabel', (difficulty: string) => {
+    this.handlebars.registerHelper('difficultyLabel', (difficulty: string) => {
       const key = `difficulty.${difficulty.toLowerCase()}` as keyof TranslationStrings;
       return this.t(key) || difficulty;
     });
 
     // Count issues by severity
-    Handlebars.registerHelper('countBySeverity', (issues: BusinessIssue[], severity: string) => {
-      if (!Array.isArray(issues)) {
-        return 0;
+    this.handlebars.registerHelper(
+      'countBySeverity',
+      (issues: BusinessIssue[], severity: string) => {
+        if (!Array.isArray(issues)) {
+          return 0;
+        }
+        return issues.filter((issue) => issue.severity === severity).length;
       }
-      return issues.filter((issue) => issue.severity === severity).length;
-    });
+    );
 
     // Check if value is not null (for showing modules that were run)
-    Handlebars.registerHelper('isNotNull', (value: unknown) => value !== null);
+    this.handlebars.registerHelper('isNotNull', (value: unknown) => value !== null);
+
+    // Block helper for equality comparison
+    this.handlebars.registerHelper(
+      'ifEquals',
+      function (this: unknown, a: unknown, b: unknown, options: Handlebars.HelperOptions) {
+        return a === b ? options.fn(this) : options.inverse(this);
+      }
+    );
   }
 
   /**
@@ -217,7 +214,7 @@ export class ReportGenerator {
       templateSource = this.getDefaultTemplate();
     }
 
-    return Handlebars.compile(templateSource);
+    return this.handlebars.compile(templateSource);
   }
 
   /**
@@ -364,10 +361,18 @@ export class ReportGenerator {
     .section h2 { font-size: 1.5rem; border-bottom: 3px solid var(--accent); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
     .section p { color: var(--text-secondary); line-height: 1.7; }
 
-    .score-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 2rem; }
-    .score-card { background: var(--bg-secondary); border-radius: 1rem; padding: 1.5rem; text-align: center; }
-    .score-card .score { font-size: 2.5rem; font-weight: 700; }
-    .score-card .label { font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-top: 2rem; }
+    .summary-card { background: var(--bg-secondary); border-radius: 1rem; padding: 1.5rem; text-align: center; }
+    .summary-card .count { font-size: 2.5rem; font-weight: 700; }
+    .summary-card .label { font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem; }
+    .summary-card.passes .count { color: var(--success); }
+    .summary-card.issues .count { color: var(--danger); }
+
+    .passes-section { margin-top: 2rem; }
+    .passes-section h3 { font-size: 1.125rem; margin-bottom: 1rem; color: var(--success); }
+    .pass-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--success-light); border-radius: 0.375rem; margin-bottom: 0.5rem; font-size: 0.875rem; }
+    .pass-item .check { color: var(--success); font-weight: 700; }
+    .pass-source { font-size: 0.75rem; color: var(--text-muted); margin-left: auto; }
 
     .issue-counts { display: flex; justify-content: center; gap: 2rem; margin-top: 1.5rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 0.5rem; }
     .issue-count-item { display: flex; align-items: center; gap: 0.5rem; }
@@ -376,6 +381,8 @@ export class ReportGenerator {
     .issue-count-item.critical .count, .issue-count-item.critical .label { color: var(--danger); }
     .issue-count-item.high .count, .issue-count-item.high .label { color: var(--orange); }
     .issue-count-item.medium .count, .issue-count-item.medium .label { color: var(--warning); }
+    .issue-count-item.low .count, .issue-count-item.low .label { color: var(--success); }
+    .issue-count-item.info .count, .issue-count-item.info .label { color: var(--info); }
 
     .priority-list { list-style: none; counter-reset: priority; }
     .priority-list li { counter-increment: priority; display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 0.5rem; margin-bottom: 0.75rem; }
@@ -423,32 +430,38 @@ export class ReportGenerator {
   <section class="section">
     <h2>Executive Summary</h2>
     <p>{{executiveSummary}}</p>
-    <div class="score-grid">
-      {{#if (isNotNull categoryScores.seo)}}
-      <div class="score-card">
-        <div class="score {{scoreColor categoryScores.seo}}">{{categoryScores.seo}}</div>
-        <div class="label">SEO</div>
+    <div class="summary-grid">
+      <div class="summary-card passes">
+        <div class="count">{{passes.length}}</div>
+        <div class="label">Checks Passed</div>
       </div>
-      {{/if}}
-      {{#if (isNotNull categoryScores.performance)}}
-      <div class="score-card">
-        <div class="score {{scoreColor categoryScores.performance}}">{{categoryScores.performance}}</div>
-        <div class="label">Performance</div>
+      <div class="summary-card issues">
+        <div class="count">{{issues.length}}</div>
+        <div class="label">Issues Found</div>
       </div>
-      {{/if}}
-      {{#if (isNotNull categoryScores.security)}}
-      <div class="score-card">
-        <div class="score {{scoreColor categoryScores.security}}">{{categoryScores.security}}</div>
-        <div class="label">Security</div>
-      </div>
-      {{/if}}
     </div>
     <div class="issue-counts">
       <div class="issue-count-item critical"><span class="count">{{countBySeverity issues 'CRITICAL'}}</span><span class="label">Critical</span></div>
       <div class="issue-count-item high"><span class="count">{{countBySeverity issues 'HIGH'}}</span><span class="label">High</span></div>
       <div class="issue-count-item medium"><span class="count">{{countBySeverity issues 'MEDIUM'}}</span><span class="label">Medium</span></div>
+      <div class="issue-count-item low"><span class="count">{{countBySeverity issues 'LOW'}}</span><span class="label">Low</span></div>
+      <div class="issue-count-item info"><span class="count">{{countBySeverity issues 'INFO'}}</span><span class="label">Info</span></div>
     </div>
   </section>
+
+  <!-- What's Working -->
+  {{#if passes.length}}
+  <section class="section passes-section">
+    <h3>What's Working</h3>
+    {{#each passes}}
+    <div class="pass-item">
+      <span class="check">✓</span>
+      <span>{{title}}</span>
+      <span class="pass-source">{{source}}</span>
+    </div>
+    {{/each}}
+  </section>
+  {{/if}}
 
   <!-- Priority Actions -->
   <section class="section">

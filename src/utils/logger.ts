@@ -7,6 +7,15 @@ import chalk from 'chalk';
 
 let currentSpinner: Ora | null = null;
 let verboseMode = false;
+let webMode = false;
+
+/**
+ * Enable web mode: suppresses ora spinners and chalk colors,
+ * uses plain console.log for container log readability.
+ */
+export function setWebMode(enabled: boolean): void {
+  webMode = enabled;
+}
 
 /**
  * Set verbose mode for logging.
@@ -30,6 +39,10 @@ function getSpinner(): Ora {
  * Start a new spinner with a message.
  */
 export function startSpinner(message: string): Ora {
+  if (webMode) {
+    console.log(`[START] ${message}`);
+    return getSpinner(); // return spinner instance for type compat, but don't start it
+  }
   const spinner = getSpinner();
   spinner.start(message);
   return spinner;
@@ -39,6 +52,10 @@ export function startSpinner(message: string): Ora {
  * Mark the current spinner as succeeded.
  */
 export function succeedSpinner(message: string): void {
+  if (webMode) {
+    console.log(`[OK] ${message}`);
+    return;
+  }
   const spinner = getSpinner();
   spinner.succeed(chalk.green(message));
 }
@@ -47,6 +64,10 @@ export function succeedSpinner(message: string): void {
  * Mark the current spinner with a warning.
  */
 export function warnSpinner(message: string): void {
+  if (webMode) {
+    console.log(`[WARN] ${message}`);
+    return;
+  }
   const spinner = getSpinner();
   spinner.warn(chalk.yellow(message));
 }
@@ -55,6 +76,10 @@ export function warnSpinner(message: string): void {
  * Mark the current spinner as failed.
  */
 export function failSpinner(message: string): void {
+  if (webMode) {
+    console.log(`[FAIL] ${message}`);
+    return;
+  }
   const spinner = getSpinner();
   spinner.fail(chalk.red(message));
 }
@@ -63,6 +88,9 @@ export function failSpinner(message: string): void {
  * Stop the spinner without any status.
  */
 export function stopSpinner(): void {
+  if (webMode) {
+    return;
+  }
   const spinner = getSpinner();
   spinner.stop();
 }
@@ -71,6 +99,9 @@ export function stopSpinner(): void {
  * Update the spinner text without changing its state.
  */
 export function updateSpinner(message: string): void {
+  if (webMode) {
+    return;
+  }
   const spinner = getSpinner();
   if (spinner.isSpinning) {
     spinner.text = message;

@@ -54,7 +54,7 @@ describe('Knowledge Base', () => {
     });
 
     it('should have entries for common security issues', () => {
-      const securityIssues = ['ZAP-10035', 'ZAP-10038', 'ZAP-10063'];
+      const securityIssues = ['SEC-HEADERS-HSTS', 'SEC-HEADERS-CSP', 'SEC-HEADERS-PP'];
 
       for (const id of securityIssues) {
         expect(KNOWLEDGE_BASE[id]).toBeDefined();

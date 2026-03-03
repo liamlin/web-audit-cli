@@ -20,7 +20,6 @@ describe('CliConfigSchema', () => {
         expect(result.data.format).toEqual(['pdf']);
         expect(result.data.crawlDepth).toBe(50);
         expect(result.data.timeout).toBe(300);
-        expect(result.data.securityScanMode).toBe('passive');
         expect(result.data.verbose).toBe(false);
         expect(result.data.parallel).toBe(false);
       }
@@ -34,7 +33,6 @@ describe('CliConfigSchema', () => {
         format: ['pdf', 'json'],
         crawlDepth: 100,
         timeout: 600,
-        securityScanMode: 'active',
         verbose: true,
         parallel: true,
       });
@@ -46,7 +44,6 @@ describe('CliConfigSchema', () => {
         expect(result.data.format).toEqual(['pdf', 'json']);
         expect(result.data.crawlDepth).toBe(100);
         expect(result.data.timeout).toBe(600);
-        expect(result.data.securityScanMode).toBe('active');
         expect(result.data.verbose).toBe(true);
         expect(result.data.parallel).toBe(true);
       }
@@ -122,10 +119,10 @@ describe('CliConfigSchema', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject invalid security scan mode', () => {
+    it('should reject invalid performance mode', () => {
       const result = CliConfigSchema.safeParse({
         url: 'https://example.com',
-        securityScanMode: 'aggressive',
+        performanceMode: 'turbo',
       });
 
       expect(result.success).toBe(false);

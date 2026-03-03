@@ -151,15 +151,15 @@
       margin-top: 3rem;
     }
 
-    /* Score and Stats Combined Section */
-    .scores-stats-grid {
+    /* Summary Cards */
+    .summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 1.5rem;
       margin-top: 2rem;
     }
 
-    .score-card {
+    .summary-card {
       background: var(--bg-secondary);
       border-radius: 1rem;
       padding: 1.5rem;
@@ -167,23 +167,51 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
 
-    .score-card .score {
+    .summary-card .count {
       font-size: 3rem;
       font-weight: 700;
       line-height: 1;
     }
 
-    .score-card .label {
+    .summary-card .label {
       font-size: 0.9375rem;
       font-weight: 500;
       color: var(--text-secondary);
       margin-top: 0.5rem;
     }
 
-    .score-card .desc {
+    .summary-card.passes .count { color: var(--success); }
+    .summary-card.issues .count { color: var(--danger); }
+
+    /* Passes Section */
+    .passes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .pass-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--success-light);
+      border-radius: 0.5rem;
+      font-size: 0.9375rem;
+    }
+
+    .pass-item .check {
+      color: var(--success);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .pass-source {
       font-size: 0.8125rem;
       color: var(--text-muted);
-      margin-top: 0.25rem;
+      margin-left: auto;
+      flex-shrink: 0;
     }
 
     /* Issue Count Summary */
@@ -219,11 +247,10 @@
     .issue-count-item.high .label { color: var(--orange); }
     .issue-count-item.medium .count,
     .issue-count-item.medium .label { color: var(--warning); }
-
-    /* Score Colors */
-    .score-good { color: var(--success); }
-    .score-medium { color: var(--warning); }
-    .score-poor { color: var(--danger); }
+    .issue-count-item.low .count,
+    .issue-count-item.low .label { color: var(--success); }
+    .issue-count-item.info .count,
+    .issue-count-item.info .label { color: var(--info); }
 
     /* Executive Summary */
     .summary-text {
@@ -490,7 +517,7 @@
 
       /* Keep cards together */
       .issue-card,
-      .score-card,
+      .summary-card,
       .tool-item {
         page-break-inside: avoid;
         break-inside: avoid;
@@ -555,34 +582,21 @@
       </div>
     </section>
 
-    <!-- Slide 2: Category Scores + Issue Summary -->
+    <!-- Slide 2: Summary + Issue Counts -->
     <section class="slide">
       <div class="slide-content">
         <h2>{{t "report.executiveSummary"}}</h2>
         <p class="summary-text">{{executiveSummary}}</p>
 
-        <div class="scores-stats-grid">
-          {{#if (isNotNull categoryScores.seo)}}
-          <div class="score-card">
-            <div class="score {{scoreColor categoryScores.seo}}">{{categoryScores.seo}}</div>
-            <div class="label">{{t "category.seo"}}</div>
-            <div class="desc">{{t "category.seoDesc"}}</div>
+        <div class="summary-grid">
+          <div class="summary-card passes">
+            <div class="count">{{passes.length}}</div>
+            <div class="label">{{t "report.checksPassed"}}</div>
           </div>
-          {{/if}}
-          {{#if (isNotNull categoryScores.performance)}}
-          <div class="score-card">
-            <div class="score {{scoreColor categoryScores.performance}}">{{categoryScores.performance}}</div>
-            <div class="label">{{t "category.performance"}}</div>
-            <div class="desc">{{t "category.performanceDesc"}}</div>
+          <div class="summary-card issues">
+            <div class="count">{{issues.length}}</div>
+            <div class="label">{{t "report.issuesFound"}}</div>
           </div>
-          {{/if}}
-          {{#if (isNotNull categoryScores.security)}}
-          <div class="score-card">
-            <div class="score {{scoreColor categoryScores.security}}">{{categoryScores.security}}</div>
-            <div class="label">{{t "category.security"}}</div>
-            <div class="desc">{{t "category.securityDesc"}}</div>
-          </div>
-          {{/if}}
         </div>
 
         <!-- Issue Counts Summary -->
@@ -599,9 +613,57 @@
             <span class="count">{{countBySeverity issues 'MEDIUM'}}</span>
             <span class="label">{{t "severity.medium"}}</span>
           </div>
+          <div class="issue-count-item low">
+            <span class="count">{{countBySeverity issues 'LOW'}}</span>
+            <span class="label">{{t "severity.low"}}</span>
+          </div>
+          <div class="issue-count-item info">
+            <span class="count">{{countBySeverity issues 'INFO'}}</span>
+            <span class="label">{{t "severity.info"}}</span>
+          </div>
         </div>
       </div>
     </section>
+
+    <!-- Module Notices (skipped/failed modules) -->
+    {{#if moduleNotices.length}}
+    <section class="slide">
+      <div class="slide-content">
+        <h2>{{t "notice.title"}}</h2>
+        <div class="issues-container">
+          {{#each moduleNotices}}
+          <div class="issue-card severity-medium">
+            <div class="issue-header">
+              <div class="issue-header-left">
+                <h3 class="issue-title">{{categoryName category}} — {{#ifEquals status "skipped"}}{{t "notice.skipped"}}{{else}}{{t "notice.failed"}}{{/ifEquals}}</h3>
+                <p class="issue-desc">{{message}}</p>
+              </div>
+              <span class="severity-badge medium">{{#ifEquals status "skipped"}}{{t "notice.skipped"}}{{else}}{{t "notice.failed"}}{{/ifEquals}}</span>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </section>
+    {{/if}}
+
+    <!-- Slide 2b: What's Working -->
+    {{#if passes.length}}
+    <section class="slide">
+      <div class="slide-content">
+        <h2>{{t "report.whatsWorking"}}</h2>
+        <div class="passes-list">
+          {{#each passes}}
+          <div class="pass-item">
+            <span class="check">✓</span>
+            <span>{{title}}</span>
+            <span class="pass-source">{{source}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </section>
+    {{/if}}
 
     <!-- Slide 3: Methodology -->
     <section class="slide methodology-slide">

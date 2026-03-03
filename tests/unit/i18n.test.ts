@@ -57,14 +57,14 @@ describe('i18n', () => {
       const t = createTranslator('en');
 
       expect(t('report.title')).toBe('Web Audit Report');
-      expect(t('report.healthScore')).toBe('Health Score');
+      expect(t('report.checksPassed')).toBe('Checks Passed');
     });
 
     it('should translate keys for Traditional Chinese locale', () => {
       const t = createTranslator('zh-TW');
 
       expect(t('report.title')).toBe('網站審計報告');
-      expect(t('report.healthScore')).toBe('健康分數');
+      expect(t('report.checksPassed')).toBe('通過檢查');
     });
 
     it('should replace template parameters', () => {

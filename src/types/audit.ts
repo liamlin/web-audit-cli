@@ -5,7 +5,6 @@
 
 /**
  * Severity levels for audit issues.
- * Used to prioritize issues and calculate scores.
  */
 export enum AuditSeverity {
   /** Requires immediate attention - major security or functionality risk */
@@ -35,7 +34,7 @@ export enum AuditCategory {
 export interface AuditIssue {
   /**
    * Unique technical identifier for this issue type.
-   * Examples: 'LCP-TOO-SLOW', 'ZAP-10035', 'BROKEN-LINK-404'
+   * Examples: 'LCP-TOO-SLOW', 'SEC-HEADERS-HSTS', 'BROKEN-LINK-404'
    */
   id: string;
 
@@ -62,6 +61,20 @@ export interface AuditIssue {
 }
 
 /**
+ * A check that the site passed successfully.
+ */
+export interface AuditPass {
+  /** Unique identifier matching the check (e.g., 'SEC-HEADERS-HSTS') */
+  id: string;
+  /** Human-readable title */
+  title: string;
+  /** Which audit category this belongs to */
+  category: AuditCategory;
+  /** Which standard/tool verified this (e.g., 'Google Lighthouse', 'OWASP Secure Headers') */
+  source: string;
+}
+
+/**
  * Result from a single audit module (SEO, Performance, or Security).
  */
 export interface AuditResult {
@@ -71,17 +84,14 @@ export interface AuditResult {
   /** When this audit was performed */
   timestamp: Date;
 
-  /**
-   * Score for this category (0-100).
-   * 100 = no issues found, lower scores based on issue severity.
-   */
-  score: number;
-
   /** Which category this result belongs to */
   category: AuditCategory;
 
   /** All issues found during the audit */
   issues: AuditIssue[];
+
+  /** Checks that the site passed */
+  passes: AuditPass[];
 
   /** Execution status of this module */
   status: 'success' | 'partial' | 'skipped' | 'failed';
@@ -196,27 +206,20 @@ export interface BusinessReport {
   /** When this report was generated */
   generatedAt: Date;
 
-  /**
-   * Overall health score (0-100).
-   * Weighted average: Security 40%, Performance 35%, SEO 25%
-   */
-  healthScore: number;
-
-  /** Individual scores for each category (null if module was not run) */
-  categoryScores: {
-    seo: number | null;
-    performance: number | null;
-    security: number | null;
-  };
-
   /** Auto-generated summary for executives */
   executiveSummary: string;
 
   /** All issues with business context, sorted by priority */
   issues: BusinessIssue[];
 
+  /** Checks that the site passed */
+  passes: AuditPass[];
+
   /** Top 5 prioritized recommendations */
   prioritizedRecommendations: string[];
+
+  /** Modules that were skipped or failed (shown as notices in the report) */
+  moduleNotices: { category: string; status: string; message: string }[];
 
   /** Original audit results for technical reference */
   rawResults: AuditResult[];

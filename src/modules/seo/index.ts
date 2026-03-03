@@ -10,6 +10,7 @@ import {
   AuditCategory,
   AuditSeverity,
   type AuditIssue,
+  type AuditPass,
   type AuditResult,
   type ModuleResult,
 } from '../../types/index.js';
@@ -112,11 +113,24 @@ export class SeoAuditor extends BaseAuditor {
       this.issues.push(...lighthouseResult.issues);
 
       // Run sitemap validation
-      const sitemapIssues = await this.runSitemapValidation(baseUrl.origin);
-      this.issues.push(...sitemapIssues);
+      const sitemapResult = await this.runSitemapValidation(baseUrl.origin);
+      this.issues.push(...sitemapResult.issues);
 
       // Run Crawlee for broken link detection
       await this.runCrawleeBrokenLinkCheck(url, baseUrl);
+
+      // Build combined passes from all sub-checks
+      const allPasses: AuditPass[] = [...lighthouseResult.passes, ...sitemapResult.passes];
+
+      // Record pass for broken-link check if Crawlee ran and found none
+      if (this.crawledUrls.size > 0 && this.brokenLinks.size === 0) {
+        allPasses.push({
+          id: 'NO-BROKEN-LINKS',
+          title: `No broken links found (${this.crawledUrls.size} pages crawled)`,
+          category: AuditCategory.SEO,
+          source: 'Crawlee CheerioCrawler',
+        });
+      }
 
       // Determine result status
       const status: 'success' | 'partial' | 'failed' =
@@ -129,9 +143,9 @@ export class SeoAuditor extends BaseAuditor {
       const result: AuditResult = {
         url,
         timestamp: new Date(),
-        score: this.calculateScore(this.issues),
         category: this.category,
         issues: this.issues,
+        passes: allPasses,
         status,
         metadata: {
           pagesAudited: this.crawledUrls.size,
@@ -150,12 +164,13 @@ export class SeoAuditor extends BaseAuditor {
 
   /**
    * Run Lighthouse SEO audits.
-   * Returns both the issues found and whether Lighthouse actually ran.
+   * Returns issues found, passes, and whether Lighthouse actually ran.
    */
   private async runLighthouseSeoAudits(
     url: string
-  ): Promise<{ issues: AuditIssue[]; didRun: boolean }> {
+  ): Promise<{ issues: AuditIssue[]; passes: AuditPass[]; didRun: boolean }> {
     const issues: AuditIssue[] = [];
+    const passes: AuditPass[] = [];
 
     // Check if Chrome is available
     const chromeCheck = await checkChromeInstalled();
@@ -163,7 +178,7 @@ export class SeoAuditor extends BaseAuditor {
       const instructions = getChromeInstallInstructions();
       this.warnings.push(`Chrome not installed, Lighthouse SEO audits skipped. ${instructions}`);
       logDebug('Chrome not installed, skipping Lighthouse SEO audits');
-      return { issues, didRun: false };
+      return { issues, passes, didRun: false };
     }
 
     try {
@@ -203,20 +218,34 @@ export class SeoAuditor extends BaseAuditor {
 
       if (!lhr) {
         this.warnings.push('Lighthouse did not return SEO results');
-        return { issues, didRun: false };
+        return { issues, passes, didRun: false };
       }
 
-      // Extract failed SEO audits
+      // Extract failed SEO audits and passing audits
       const extractedIssues = this.extractLighthouseSeoIssues(lhr, url);
       issues.push(...extractedIssues);
 
-      logDebug(`Lighthouse SEO audits found ${issues.length} issues`);
-      return { issues, didRun: true };
+      // Extract passing audits from Lighthouse
+      const audits = lhr.audits;
+      for (const [auditId, config] of Object.entries(LIGHTHOUSE_SEO_AUDITS)) {
+        const audit = audits[auditId];
+        if (audit && audit.score === 1) {
+          passes.push({
+            id: config.id,
+            title: config.title,
+            category: AuditCategory.SEO,
+            source: 'Google Lighthouse',
+          });
+        }
+      }
+
+      logDebug(`Lighthouse SEO audits found ${issues.length} issues, ${passes.length} passes`);
+      return { issues, passes, didRun: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.warnings.push(`Lighthouse SEO audit error: ${message}`);
       logDebug(`Lighthouse SEO audit error: ${message}`);
-      return { issues, didRun: false };
+      return { issues, passes, didRun: false };
     }
   }
 
@@ -265,8 +294,11 @@ export class SeoAuditor extends BaseAuditor {
   /**
    * Run sitemap validation.
    */
-  private async runSitemapValidation(origin: string): Promise<AuditIssue[]> {
+  private async runSitemapValidation(
+    origin: string
+  ): Promise<{ issues: AuditIssue[]; passes: AuditPass[] }> {
     const issues: AuditIssue[] = [];
+    const passes: AuditPass[] = [];
 
     try {
       const sitemapUrl = `${origin}/sitemap.xml`;
@@ -317,6 +349,14 @@ export class SeoAuditor extends BaseAuditor {
             },
           })
         );
+      } else {
+        // Valid sitemap found — record as a pass
+        passes.push({
+          id: 'SITEMAP-VALID',
+          title: `Valid sitemap.xml found (${result.urlCount ?? 0} URLs)`,
+          category: AuditCategory.SEO,
+          source: 'sitemaps.org XSD validation',
+        });
       }
 
       logDebug(
@@ -328,7 +368,7 @@ export class SeoAuditor extends BaseAuditor {
       logDebug(`Sitemap validation error: ${message}`);
     }
 
-    return issues;
+    return { issues, passes };
   }
 
   /**

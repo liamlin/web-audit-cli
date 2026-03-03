@@ -37,6 +37,18 @@ npm run dev          # Watch mode - recompiles on changes
 npm run test:watch   # Watch mode for tests
 ```
 
+### Runtime Modes
+
+The project has three runtime modes, each with its own entry point:
+
+| Mode        | Entry Point        | Start Command                  |
+| ----------- | ------------------ | ------------------------------ |
+| **CLI**     | `src/index.ts`     | `node dist/index.js --url ...` |
+| **Web**     | `src/server.ts`    | `npm run start:web`            |
+| **Desktop** | `electron/main.ts` | `npm run start:electron`       |
+
+The web and desktop modes share the same Hono server and frontend (`src/web/`). The desktop app wraps the web server in an Electron BrowserWindow.
+
 ### Code Style
 
 - **TypeScript**: Strict mode enabled with ES2022 target

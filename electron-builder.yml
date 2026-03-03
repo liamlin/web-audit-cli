@@ -1,0 +1,29 @@
+appId: com.webaudit.desktop
+productName: Web Audit
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+extraMetadata:
+  main: dist-electron/main.js
+mac:
+  target: [dmg]
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+win:
+  target: [nsis]
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target: [AppImage]
+  category: Development
+asar: true
+asarUnpack:
+  - dist/modules/reporter/templates/**
+  - dist/web/public/**
+  - node_modules/puppeteer*/**
+  - node_modules/chrome-launcher/**

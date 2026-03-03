@@ -3,29 +3,19 @@
  * This is the "intelligence layer" that converts technical jargon into stakeholder language.
  */
 
-import type {
+import {
   AuditCategory,
-  AuditIssue,
-  AuditResult,
-  AuditSeverity,
-  BusinessIssue,
-  BusinessReport,
-  MethodologyInfo,
-  ToolInfo,
-  TestInfo,
+  type AuditIssue,
+  type AuditResult,
+  type AuditSeverity,
+  type BusinessIssue,
+  type BusinessReport,
+  type MethodologyInfo,
+  type ToolInfo,
+  type TestInfo,
 } from '../types/audit.js';
 import { getResolvedKnowledgeEntry } from './knowledge-base.js';
 import type { Locale } from '../utils/i18n.js';
-
-/**
- * Weights for calculating the overall health score.
- * Security is weighted highest as it poses the greatest risk.
- */
-const CATEGORY_WEIGHTS = {
-  seo: 0.25,
-  performance: 0.35,
-  security: 0.4,
-} as const;
 
 /**
  * Order for sorting issues by severity.
@@ -44,7 +34,7 @@ const SEVERITY_ORDER: Record<AuditSeverity, number> = {
 const TOOL_DEFINITIONS: Record<string, ToolInfo> = {
   seo: {
     name: 'Google Lighthouse SEO + Crawlee + sitemaps.org validation',
-    version: '12.x / 3.x',
+    version: '12.x+ / 3.x+',
     purpose:
       'Lighthouse SEO audits for crawlability, meta tags, and link quality. Crawlee for broken link detection. Sitemap validation per sitemaps.org protocol.',
     credibility:
@@ -52,17 +42,18 @@ const TOOL_DEFINITIONS: Record<string, ToolInfo> = {
   },
   performance: {
     name: 'Google Lighthouse',
-    version: '12.x',
+    version: '12.x+',
     purpose:
       'An open-source, automated tool for improving the quality of web pages with audits for performance, accessibility, SEO, and more.',
     credibility: 'Official Google tool integrated into Chrome DevTools and PageSpeed Insights.',
   },
   security: {
-    name: 'OWASP ZAP',
-    version: '2.x',
-    purpose: "The world's most widely used web app scanner. Free and open source.",
+    name: 'Passive Security Scanner (Mozilla Observatory + OWASP Secure Headers)',
+    version: '1.x',
+    purpose:
+      'Passive security scanner that checks HTTP security headers, cookie attributes, and HTML-level issues against Mozilla Observatory and OWASP Secure Headers Project standards.',
     credibility:
-      'Flagship project of the OWASP Foundation, the standard for web application security testing.',
+      'Checks based on Mozilla Observatory grading criteria, OWASP Secure Headers Project recommendations, and known CVE databases — industry-standard security baselines.',
   },
 };
 
@@ -81,17 +72,25 @@ export class MatrixEngine {
    */
   enhanceReport(results: AuditResult[], auditDurationMs?: number): BusinessReport {
     const allIssues = results.flatMap((r) => r.issues);
+    const allPasses = results.flatMap((r) => r.passes);
     const enhancedIssues = this.enhanceIssues(allIssues);
-    const categoryScores = this.calculateCategoryScores(results);
-    const healthScore = this.calculateHealthScore(categoryScores);
+
+    // Extract notices for modules that were skipped or failed
+    const moduleNotices = results
+      .filter((r) => r.status === 'skipped' || r.status === 'failed')
+      .map((r) => ({
+        category: r.category,
+        status: r.status,
+        message: r.errorMessage ?? `${r.category} module ${r.status}`,
+      }));
 
     return {
       url: results[0]?.url ?? '',
       generatedAt: new Date(),
-      healthScore,
-      categoryScores,
-      executiveSummary: this.generateExecutiveSummary(healthScore, categoryScores, enhancedIssues),
+      executiveSummary: this.generateExecutiveSummary(results, enhancedIssues),
       issues: this.sortByPriority(enhancedIssues),
+      passes: allPasses,
+      moduleNotices,
       prioritizedRecommendations: this.generateTopRecommendations(enhancedIssues),
       rawResults: results,
       methodology: this.generateMethodology(results, auditDurationMs),
@@ -122,30 +121,14 @@ export class MatrixEngine {
 
     for (const result of results) {
       const category = result.category;
-      let description = '';
-
-      switch (category) {
-        case 'SEO':
-          description =
-            'Google Lighthouse SEO audits (crawlability, title, meta description, canonical, robots.txt, link text, image alt, hreflang), sitemap.xml validation per sitemaps.org protocol, broken link detection via site crawling';
-          break;
-        case 'PERFORMANCE':
-          description =
-            'Core Web Vitals measurement (LCP, CLS, TBT), First Contentful Paint, Speed Index, optimization opportunity analysis';
-          break;
-        case 'SECURITY':
-          description =
-            'OWASP Top 10 vulnerability scanning, security header analysis (CSP, HSTS, X-Frame-Options), SSL/TLS configuration, known vulnerability detection';
-          break;
-      }
+      const description = this.buildTestDescription(category, result.status);
+      const totalChecks = result.issues.length + result.passes.length;
 
       const testInfo: TestInfo = {
         category: category as string,
         description,
+        checkCount: totalChecks,
       };
-      if (result.issues.length > 0) {
-        testInfo.checkCount = result.issues.length;
-      }
       testsPerformed.push(testInfo);
     }
 
@@ -171,6 +154,40 @@ export class MatrixEngine {
   }
 
   /**
+   * Build the tests-performed description for a category, reflecting the module's execution status.
+   */
+  private buildTestDescription(category: AuditCategory, status: AuditResult['status']): string {
+    if (status === 'failed') {
+      return 'Module execution failed - no checks completed';
+    }
+
+    let description: string;
+
+    switch (category) {
+      case AuditCategory.SEO:
+        description =
+          'Google Lighthouse SEO audits (crawlability, title, meta description, canonical, robots.txt, link text, image alt, hreflang), sitemap.xml validation per sitemaps.org protocol, broken link detection via site crawling';
+        break;
+      case AuditCategory.PERFORMANCE:
+        description =
+          'Core Web Vitals measurement (LCP, CLS, TBT), First Contentful Paint, Speed Index, optimization opportunity analysis';
+        break;
+      case AuditCategory.SECURITY:
+        description =
+          'HTTP security header analysis (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Permissions-Policy, Referrer-Policy, CORS, COOP/COEP/CORP), cookie security attributes, SRI verification, cross-domain script detection, vulnerable library detection';
+        break;
+      default:
+        description = `${category} audit checks`;
+    }
+
+    if (status === 'partial') {
+      description += ' (partial results - some checks may have been skipped)';
+    }
+
+    return description;
+  }
+
+  /**
    * Enhance issues with business context from the knowledge base.
    */
   private enhanceIssues(issues: AuditIssue[]): BusinessIssue[] {
@@ -187,100 +204,27 @@ export class MatrixEngine {
   }
 
   /**
-   * Extract scores for each category from results.
-   * Returns null for modules that were not run.
-   */
-  private calculateCategoryScores(results: AuditResult[]): BusinessReport['categoryScores'] {
-    const findScore = (category: AuditCategory): number | null => {
-      const result = results.find((r) => r.category === category);
-      // Return null if the module wasn't run (not found)
-      if (!result) {
-        return null;
-      }
-      return result.score;
-    };
-
-    return {
-      seo: findScore('SEO' as AuditCategory),
-      performance: findScore('PERFORMANCE' as AuditCategory),
-      security: findScore('SECURITY' as AuditCategory),
-    };
-  }
-
-  /**
-   * Calculate the weighted overall health score.
-   * Only considers modules that were actually run (non-null scores).
-   */
-  private calculateHealthScore(scores: BusinessReport['categoryScores']): number {
-    // Only include scores that are not null
-    let totalWeight = 0;
-    let weightedSum = 0;
-
-    if (scores.seo !== null) {
-      weightedSum += scores.seo * CATEGORY_WEIGHTS.seo;
-      totalWeight += CATEGORY_WEIGHTS.seo;
-    }
-    if (scores.performance !== null) {
-      weightedSum += scores.performance * CATEGORY_WEIGHTS.performance;
-      totalWeight += CATEGORY_WEIGHTS.performance;
-    }
-    if (scores.security !== null) {
-      weightedSum += scores.security * CATEGORY_WEIGHTS.security;
-      totalWeight += CATEGORY_WEIGHTS.security;
-    }
-
-    // Avoid division by zero (shouldn't happen in practice)
-    if (totalWeight === 0) {
-      return 0;
-    }
-
-    // Normalize the score based on the weights of modules that were run
-    return Math.round(weightedSum / totalWeight);
-  }
-
-  /**
    * Generate an executive summary for the report.
    */
-  private generateExecutiveSummary(
-    healthScore: number,
-    scores: BusinessReport['categoryScores'],
-    issues: BusinessIssue[]
-  ): string {
+  private generateExecutiveSummary(results: AuditResult[], issues: BusinessIssue[]): string {
     const criticalCount = issues.filter((i) => i.severity === 'CRITICAL').length;
     const highCount = issues.filter((i) => i.severity === 'HIGH').length;
+    const totalPasses = results.reduce((sum, r) => sum + r.passes.length, 0);
+    const categories = results.map((r) => r.category).join(', ');
 
-    let summary = `Overall website health score is ${healthScore}/100. `;
-
-    if (healthScore >= 80) {
-      summary += 'The site is in good condition overall. ';
-    } else if (healthScore >= 60) {
-      summary += 'There are issues that need attention. ';
-    } else {
-      summary += 'Serious issues were found that require immediate action. ';
-    }
-
-    // Find the weakest dimension (only consider modules that were run)
-    const categoryNames: Record<keyof typeof scores, string> = {
-      seo: 'SEO',
-      performance: 'Performance',
-      security: 'Security',
-    };
-
-    const scoreEntries = (Object.entries(scores) as [keyof typeof scores, number | null][]).filter(
-      (entry): entry is [keyof typeof scores, number] => entry[1] !== null
-    );
-
-    if (scoreEntries.length > 0) {
-      const [weakestCategory, weakestScore] = scoreEntries.reduce((a, b) => (a[1] < b[1] ? a : b));
-      summary += `${categoryNames[weakestCategory]} needs the most improvement (score: ${weakestScore}). `;
-    }
+    let summary = `Audit of ${results[0]?.url ?? 'unknown'} found ${issues.length} issue${issues.length !== 1 ? 's' : ''} across ${categories}. `;
 
     if (criticalCount > 0) {
-      summary += `Found ${criticalCount} critical issue${criticalCount > 1 ? 's' : ''} requiring immediate attention. `;
+      const criticalIssues = issues.filter((i) => i.severity === 'CRITICAL').slice(0, 2);
+      summary += `${criticalCount} critical issue${criticalCount > 1 ? 's' : ''} found: ${criticalIssues.map((i) => i.title).join('; ')}. `;
     }
 
     if (highCount > 0) {
-      summary += `Additionally, ${highCount} high-priority issue${highCount > 1 ? 's' : ''} should be addressed soon.`;
+      summary += `${highCount} high-priority issue${highCount > 1 ? 's' : ''} should be addressed soon. `;
+    }
+
+    if (totalPasses > 0) {
+      summary += `The site performs well in ${totalPasses} area${totalPasses !== 1 ? 's' : ''}.`;
     }
 
     return summary.trim();

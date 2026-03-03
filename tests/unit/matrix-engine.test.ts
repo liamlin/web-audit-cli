@@ -2,7 +2,7 @@
  * Tests for Matrix Engine business report generation.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { MatrixEngine } from '../../src/core/matrix-engine.js';
 import {
   AuditCategory,
@@ -14,17 +14,13 @@ import {
 /**
  * Create a mock audit result for testing.
  */
-function createMockResult(
-  category: AuditCategory,
-  score: number,
-  issues: AuditIssue[] = []
-): AuditResult {
+function createMockResult(category: AuditCategory, issues: AuditIssue[] = []): AuditResult {
   return {
     url: 'https://example.com',
     timestamp: new Date(),
-    score,
     category,
     issues,
+    passes: [],
     status: 'success',
   };
 }
@@ -53,65 +49,61 @@ describe('MatrixEngine', () => {
   describe('enhanceReport', () => {
     it('should generate a complete business report', () => {
       const results = [
-        createMockResult(AuditCategory.SEO, 80),
-        createMockResult(AuditCategory.PERFORMANCE, 70),
-        createMockResult(AuditCategory.SECURITY, 90),
+        createMockResult(AuditCategory.SEO),
+        createMockResult(AuditCategory.PERFORMANCE),
+        createMockResult(AuditCategory.SECURITY),
       ];
 
       const report = engine.enhanceReport(results);
 
       expect(report.url).toBe('https://example.com');
       expect(report.generatedAt).toBeInstanceOf(Date);
-      expect(report.healthScore).toBeGreaterThanOrEqual(0);
-      expect(report.healthScore).toBeLessThanOrEqual(100);
-      expect(report.categoryScores).toHaveProperty('seo');
-      expect(report.categoryScores).toHaveProperty('performance');
-      expect(report.categoryScores).toHaveProperty('security');
       expect(report.executiveSummary).toBeTruthy();
       expect(Array.isArray(report.issues)).toBe(true);
+      expect(Array.isArray(report.passes)).toBe(true);
       expect(Array.isArray(report.prioritizedRecommendations)).toBe(true);
       expect(report.rawResults).toBe(results);
+      expect(report.methodology).toBeDefined();
     });
 
-    it('should calculate weighted health score correctly', () => {
-      // Weights: seo=0.25, performance=0.35, security=0.4
+    it('should include passes from all results', () => {
       const results = [
-        createMockResult(AuditCategory.SEO, 100),
-        createMockResult(AuditCategory.PERFORMANCE, 100),
-        createMockResult(AuditCategory.SECURITY, 100),
+        {
+          ...createMockResult(AuditCategory.SEO),
+          passes: [
+            {
+              id: 'SEO-PASS-1',
+              title: 'SEO check passed',
+              category: AuditCategory.SEO,
+              source: 'Lighthouse',
+            },
+          ],
+        },
+        {
+          ...createMockResult(AuditCategory.SECURITY),
+          passes: [
+            {
+              id: 'SEC-PASS-1',
+              title: 'Security check passed',
+              category: AuditCategory.SECURITY,
+              source: 'OWASP',
+            },
+          ],
+        },
       ];
 
       const report = engine.enhanceReport(results);
-      expect(report.healthScore).toBe(100);
-    });
 
-    it('should weight security higher than other categories', () => {
-      // Security only at 0
-      const lowSecurityResults = [
-        createMockResult(AuditCategory.SEO, 100),
-        createMockResult(AuditCategory.PERFORMANCE, 100),
-        createMockResult(AuditCategory.SECURITY, 0),
-      ];
-
-      // SEO only at 0
-      const lowSeoResults = [
-        createMockResult(AuditCategory.SEO, 0),
-        createMockResult(AuditCategory.PERFORMANCE, 100),
-        createMockResult(AuditCategory.SECURITY, 100),
-      ];
-
-      const lowSecurityReport = engine.enhanceReport(lowSecurityResults);
-      const lowSeoReport = engine.enhanceReport(lowSeoResults);
-
-      // Security has higher weight (0.4) so its low score hurts more
-      expect(lowSecurityReport.healthScore).toBeLessThan(lowSeoReport.healthScore);
+      expect(report.passes).toHaveLength(2);
+      expect(report.passes.find((p) => p.id === 'SEO-PASS-1')).toBeDefined();
+      expect(report.passes.find((p) => p.id === 'SEC-PASS-1')).toBeDefined();
     });
   });
 
   describe('issue enhancement', () => {
     it('should add business context to known issues', () => {
       const results = [
-        createMockResult(AuditCategory.PERFORMANCE, 50, [
+        createMockResult(AuditCategory.PERFORMANCE, [
           createMockIssue('LCP-POOR', AuditSeverity.HIGH, AuditCategory.PERFORMANCE),
         ]),
       ];
@@ -127,7 +119,7 @@ describe('MatrixEngine', () => {
 
     it('should use default context for unknown issues', () => {
       const results = [
-        createMockResult(AuditCategory.SEO, 90, [
+        createMockResult(AuditCategory.SEO, [
           createMockIssue('UNKNOWN-ISSUE', AuditSeverity.LOW, AuditCategory.SEO),
         ]),
       ];
@@ -143,7 +135,7 @@ describe('MatrixEngine', () => {
   describe('issue sorting', () => {
     it('should sort issues by severity (CRITICAL first)', () => {
       const results = [
-        createMockResult(AuditCategory.SEO, 50, [
+        createMockResult(AuditCategory.SEO, [
           createMockIssue('LOW-1', AuditSeverity.LOW, AuditCategory.SEO),
           createMockIssue('CRITICAL-1', AuditSeverity.CRITICAL, AuditCategory.SEO),
           createMockIssue('HIGH-1', AuditSeverity.HIGH, AuditCategory.SEO),
@@ -161,21 +153,9 @@ describe('MatrixEngine', () => {
   });
 
   describe('executive summary', () => {
-    it('should mention the weakest category', () => {
-      const results = [
-        createMockResult(AuditCategory.SEO, 90),
-        createMockResult(AuditCategory.PERFORMANCE, 30), // Weakest
-        createMockResult(AuditCategory.SECURITY, 80),
-      ];
-
-      const report = engine.enhanceReport(results);
-
-      expect(report.executiveSummary.toLowerCase()).toContain('performance');
-    });
-
     it('should mention critical issue count', () => {
       const results = [
-        createMockResult(AuditCategory.SEO, 50, [
+        createMockResult(AuditCategory.SEO, [
           createMockIssue('CRITICAL-1', AuditSeverity.CRITICAL, AuditCategory.SEO),
           createMockIssue('CRITICAL-2', AuditSeverity.CRITICAL, AuditCategory.SEO),
         ]),
@@ -186,6 +166,62 @@ describe('MatrixEngine', () => {
       expect(report.executiveSummary).toContain('2');
       expect(report.executiveSummary.toLowerCase()).toContain('critical');
     });
+
+    it('should mention high-priority issue count', () => {
+      const results = [
+        createMockResult(AuditCategory.PERFORMANCE, [
+          createMockIssue('HIGH-1', AuditSeverity.HIGH, AuditCategory.PERFORMANCE),
+        ]),
+      ];
+
+      const report = engine.enhanceReport(results);
+
+      expect(report.executiveSummary).toContain('1');
+      expect(report.executiveSummary.toLowerCase()).toContain('high');
+    });
+
+    it('should mention passes when present', () => {
+      const results = [
+        {
+          ...createMockResult(AuditCategory.SEO),
+          passes: [
+            {
+              id: 'PASS-1',
+              title: 'Check passed',
+              category: AuditCategory.SEO,
+              source: 'Lighthouse',
+            },
+            {
+              id: 'PASS-2',
+              title: 'Check passed',
+              category: AuditCategory.SEO,
+              source: 'Lighthouse',
+            },
+          ],
+        },
+      ];
+
+      const report = engine.enhanceReport(results);
+
+      expect(report.executiveSummary).toContain('2 area');
+    });
+
+    it('should mention total issue count and categories', () => {
+      const results = [
+        createMockResult(AuditCategory.SEO, [
+          createMockIssue('SEO-1', AuditSeverity.MEDIUM, AuditCategory.SEO),
+        ]),
+        createMockResult(AuditCategory.SECURITY, [
+          createMockIssue('SEC-1', AuditSeverity.LOW, AuditCategory.SECURITY),
+        ]),
+      ];
+
+      const report = engine.enhanceReport(results);
+
+      expect(report.executiveSummary).toContain('2 issues');
+      expect(report.executiveSummary).toContain('SEO');
+      expect(report.executiveSummary).toContain('SECURITY');
+    });
   });
 
   describe('prioritized recommendations', () => {
@@ -194,7 +230,7 @@ describe('MatrixEngine', () => {
         createMockIssue(`ISSUE-${i}`, AuditSeverity.MEDIUM, AuditCategory.SEO)
       );
 
-      const results = [createMockResult(AuditCategory.SEO, 50, issues)];
+      const results = [createMockResult(AuditCategory.SEO, issues)];
 
       const report = engine.enhanceReport(results);
 
@@ -203,7 +239,7 @@ describe('MatrixEngine', () => {
 
     it('should exclude INFO issues from recommendations', () => {
       const results = [
-        createMockResult(AuditCategory.SEO, 90, [
+        createMockResult(AuditCategory.SEO, [
           createMockIssue('INFO-1', AuditSeverity.INFO, AuditCategory.SEO),
           createMockIssue('INFO-2', AuditSeverity.INFO, AuditCategory.SEO),
         ]),
@@ -212,6 +248,122 @@ describe('MatrixEngine', () => {
       const report = engine.enhanceReport(results);
 
       expect(report.prioritizedRecommendations.length).toBe(0);
+    });
+  });
+
+  describe('methodology', () => {
+    it('should include full description and checkCount for successful modules', () => {
+      const results = [
+        {
+          ...createMockResult(AuditCategory.SECURITY),
+          issues: [createMockIssue('SEC-1', AuditSeverity.MEDIUM, AuditCategory.SECURITY)],
+          passes: [
+            {
+              id: 'SEC-PASS-1',
+              title: 'HSTS present',
+              category: AuditCategory.SECURITY,
+              source: 'OWASP',
+            },
+            {
+              id: 'SEC-PASS-2',
+              title: 'CSP present',
+              category: AuditCategory.SECURITY,
+              source: 'OWASP',
+            },
+          ],
+        },
+      ];
+
+      const report = engine.enhanceReport(results);
+      const secTest = report.methodology.testsPerformed.find((t) => t.category === 'SECURITY');
+
+      expect(secTest).toBeDefined();
+      expect(secTest!.description).toContain('HTTP security header analysis');
+      expect(secTest!.description).not.toContain('partial');
+      expect(secTest!.description).not.toContain('failed');
+      expect(secTest!.checkCount).toBe(3);
+    });
+
+    it('should append partial notice when module status is partial', () => {
+      const results: AuditResult[] = [
+        {
+          ...createMockResult(AuditCategory.PERFORMANCE),
+          status: 'partial',
+          issues: [createMockIssue('LCP-POOR', AuditSeverity.HIGH, AuditCategory.PERFORMANCE)],
+        },
+      ];
+
+      const report = engine.enhanceReport(results);
+      const perfTest = report.methodology.testsPerformed.find((t) => t.category === 'PERFORMANCE');
+
+      expect(perfTest).toBeDefined();
+      expect(perfTest!.description).toContain('Core Web Vitals measurement');
+      expect(perfTest!.description).toContain(
+        'partial results - some checks may have been skipped'
+      );
+      expect(perfTest!.checkCount).toBe(1);
+    });
+
+    it('should show failure message when module status is failed', () => {
+      const results: AuditResult[] = [
+        {
+          ...createMockResult(AuditCategory.SEO),
+          status: 'failed',
+          errorMessage: 'Chrome not available',
+        },
+      ];
+
+      const report = engine.enhanceReport(results);
+      const seoTest = report.methodology.testsPerformed.find((t) => t.category === 'SEO');
+
+      expect(seoTest).toBeDefined();
+      expect(seoTest!.description).toBe('Module execution failed - no checks completed');
+      expect(seoTest!.description).not.toContain('Lighthouse');
+      expect(seoTest!.checkCount).toBe(0);
+    });
+
+    it('should reflect mixed statuses across multiple modules', () => {
+      const results: AuditResult[] = [
+        {
+          ...createMockResult(AuditCategory.SEO),
+          status: 'success',
+          passes: [
+            {
+              id: 'SEO-PASS-1',
+              title: 'Title OK',
+              category: AuditCategory.SEO,
+              source: 'Lighthouse',
+            },
+          ],
+        },
+        {
+          ...createMockResult(AuditCategory.PERFORMANCE),
+          status: 'failed',
+          errorMessage: 'Chrome crash',
+        },
+        {
+          ...createMockResult(AuditCategory.SECURITY),
+          status: 'partial',
+          issues: [createMockIssue('SEC-1', AuditSeverity.LOW, AuditCategory.SECURITY)],
+        },
+      ];
+
+      const report = engine.enhanceReport(results);
+      const tests = report.methodology.testsPerformed;
+
+      const seoTest = tests.find((t) => t.category === 'SEO');
+      expect(seoTest!.description).toContain('Lighthouse SEO audits');
+      expect(seoTest!.description).not.toContain('partial');
+      expect(seoTest!.checkCount).toBe(1);
+
+      const perfTest = tests.find((t) => t.category === 'PERFORMANCE');
+      expect(perfTest!.description).toBe('Module execution failed - no checks completed');
+      expect(perfTest!.checkCount).toBe(0);
+
+      const secTest = tests.find((t) => t.category === 'SECURITY');
+      expect(secTest!.description).toContain('HTTP security header analysis');
+      expect(secTest!.description).toContain('partial results');
+      expect(secTest!.checkCount).toBe(1);
     });
   });
 });

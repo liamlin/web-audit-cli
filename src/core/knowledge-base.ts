@@ -43,56 +43,7 @@ export interface ResolvedKnowledgeEntry {
  */
 export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
   // ===== Security Issues =====
-  'ZAP-10035': {
-    businessImpact: {
-      en: 'Data leak risk: Attackers can intercept user communications via SSL stripping attacks, stealing credentials or credit card numbers',
-      'zh-TW': '資料外洩風險：攻擊者可透過 SSL 剝離攻擊攔截使用者通訊，竊取帳號密碼或信用卡號碼',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
-    expectedOutcome: {
-      en: 'Ensure 100% encrypted transmission, meeting PCI-DSS and other security compliance requirements',
-      'zh-TW': '確保 100% 加密傳輸，符合 PCI-DSS 等安全合規要求',
-    },
-  },
-  'ZAP-10038': {
-    businessImpact: {
-      en: 'Malicious code injection: Site is vulnerable to cross-site scripting (XSS), allowing attackers to inject malicious scripts that steal cookies or modify page content',
-      'zh-TW':
-        '惡意程式碼注入：網站存在跨站腳本（XSS）漏洞，攻擊者可注入惡意腳本竊取 Cookie 或竄改頁面內容',
-    },
-    fixDifficulty: 'Medium',
-    estimatedEffort: { en: '4-8 hours', 'zh-TW': '4-8 小時' },
-    expectedOutcome: {
-      en: 'Significantly reduce XSS attack surface, protecting user account security',
-      'zh-TW': '大幅降低 XSS 攻擊面，保護使用者帳號安全',
-    },
-  },
-  'ZAP-10038-1': {
-    businessImpact: {
-      en: 'No Content Security Policy: Site lacks defense against XSS and data injection attacks',
-      'zh-TW': '缺少內容安全政策：網站缺乏對 XSS 和資料注入攻擊的防禦',
-    },
-    fixDifficulty: 'Medium',
-    estimatedEffort: { en: '4-8 hours', 'zh-TW': '4-8 小時' },
-    expectedOutcome: {
-      en: 'CSP header provides defense-in-depth against code injection attacks',
-      'zh-TW': 'CSP 標頭提供對程式碼注入攻擊的縱深防禦',
-    },
-  },
-  'ZAP-10055': {
-    businessImpact: {
-      en: 'Weak Content Security Policy: Current CSP configuration has gaps that could be exploited',
-      'zh-TW': '內容安全政策配置薄弱：目前的 CSP 配置存在可被利用的漏洞',
-    },
-    fixDifficulty: 'Medium',
-    estimatedEffort: { en: '2-4 hours', 'zh-TW': '2-4 小時' },
-    expectedOutcome: {
-      en: 'Properly configured CSP that blocks unauthorized code execution',
-      'zh-TW': '正確配置的 CSP 可阻擋未經授權的程式碼執行',
-    },
-  },
-  'ZAP-10035-1': {
+  'SEC-HEADERS-HSTS': {
     businessImpact: {
       en: 'Missing HSTS header: Users may be vulnerable to SSL stripping attacks when first visiting the site',
       'zh-TW': '缺少 HSTS 標頭：使用者首次訪問網站時可能遭受 SSL 剝離攻擊',
@@ -104,31 +55,32 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
       'zh-TW': '強制使用 HTTPS 連線，防止降級攻擊',
     },
   },
-  'ZAP-10063': {
+  'SEC-HEADERS-CSP': {
     businessImpact: {
-      en: 'Privacy risk: Third-party scripts may access microphone, camera, or geolocation without authorization, causing privacy concerns',
-      'zh-TW': '隱私風險：第三方程式可能未經同意就存取麥克風、相機或定位資訊，引發隱私疑慮',
+      en: 'No Content Security Policy: Site lacks defense against XSS and data injection attacks',
+      'zh-TW': '缺少內容安全政策：網站缺乏對 XSS 和資料注入攻擊的防禦',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '4-8 hours', 'zh-TW': '4-8 小時' },
+    expectedOutcome: {
+      en: 'CSP header provides defense-in-depth against code injection attacks',
+      'zh-TW': 'CSP 標頭提供對程式碼注入攻擊的縱深防禦',
+    },
+  },
+  'SEC-HEADERS-XFO': {
+    businessImpact: {
+      en: 'The site may be vulnerable to clickjacking attacks, where attackers embed the page in a hidden iframe to trick users into unintended actions',
+      'zh-TW':
+        '網站可能遭受點擊劫持攻擊，攻擊者將頁面嵌入隱藏的 iframe 中，誘騙使用者執行非預期的操作',
     },
     fixDifficulty: 'Low',
     estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
     expectedOutcome: {
-      en: 'Precisely control browser API permissions, enhancing user privacy trust',
-      'zh-TW': '精準控制瀏覽器 API 權限，提升使用者對隱私保護的信任',
+      en: 'X-Frame-Options header prevents clickjacking by blocking unauthorized iframe embedding',
+      'zh-TW': '透過 X-Frame-Options 標頭阻止未授權的 iframe 嵌入，防止點擊劫持攻擊',
     },
   },
-  'ZAP-10020': {
-    businessImpact: {
-      en: 'Security header missing: Site lacks basic security headers, making it easier for attackers to exploit common vulnerabilities',
-      'zh-TW': '缺少安全標頭：網站缺乏基本的安全防護設定，讓駭客更容易利用常見漏洞',
-    },
-    fixDifficulty: 'Low',
-    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
-    expectedOutcome: {
-      en: 'Add defense-in-depth protection against common web attacks',
-      'zh-TW': '增加多層防護，抵禦常見的網頁攻擊',
-    },
-  },
-  'ZAP-10021': {
+  'SEC-HEADERS-XCTO': {
     businessImpact: {
       en: 'MIME-sniffing vulnerability: Browsers may interpret files as different content types, enabling XSS attacks through uploaded files',
       'zh-TW': 'MIME 嗅探漏洞：瀏覽器可能將檔案解讀為不同的內容類型，透過上傳檔案進行 XSS 攻擊',
@@ -140,31 +92,48 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
       'zh-TW': '透過 X-Content-Type-Options 標頭防止 MIME 嗅探攻擊',
     },
   },
-  'ZAP-10003': {
+  'SEC-HEADERS-PP': {
     businessImpact: {
-      en: 'Known vulnerabilities in JavaScript libraries can be exploited by attackers to compromise user sessions or steal data',
-      'zh-TW': 'JavaScript 函式庫存在已知漏洞，可被攻擊者利用來劫持使用者會話或竊取資料',
+      en: 'Privacy risk: Third-party scripts may access microphone, camera, or geolocation without authorization, causing privacy concerns',
+      'zh-TW': '隱私風險：第三方程式可能未經同意就存取麥克風、相機或定位資訊，引發隱私疑慮',
     },
-    fixDifficulty: 'Medium',
-    estimatedEffort: { en: '2-8 hours', 'zh-TW': '2-8 小時' },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
     expectedOutcome: {
-      en: 'Up-to-date libraries without known security vulnerabilities',
-      'zh-TW': '更新函式庫至無已知安全漏洞的版本',
+      en: 'Precisely control browser API permissions, enhancing user privacy trust',
+      'zh-TW': '精準控制瀏覽器 API 權限，提升使用者對隱私保護的信任',
     },
   },
-  'ZAP-10202': {
+  'SEC-CSP-WEAK': {
     businessImpact: {
-      en: 'Cross-Site Request Forgery (CSRF) vulnerability: Attackers can trick users into performing unwanted actions on your site',
-      'zh-TW': '跨站請求偽造（CSRF）漏洞：駭客可以騙使用者在您的網站上執行非預期的操作',
+      en: 'Weak Content Security Policy: Current CSP configuration has gaps that could be exploited',
+      'zh-TW': '內容安全政策配置薄弱：目前的 CSP 配置存在可被利用的漏洞',
     },
     fixDifficulty: 'Medium',
-    estimatedEffort: { en: '4-8 hours', 'zh-TW': '4-8 小時' },
+    estimatedEffort: { en: '2-4 hours', 'zh-TW': '2-4 小時' },
     expectedOutcome: {
-      en: 'Protected forms and state-changing operations with CSRF tokens',
-      'zh-TW': '透過 CSRF 驗證碼保護表單和重要操作',
+      en: 'Properly configured CSP that blocks unauthorized code execution',
+      'zh-TW': '正確配置的 CSP 可阻擋未經授權的程式碼執行',
     },
   },
-  'ZAP-90003': {
+  'SEC-COOKIES-SCOPE': {
+    businessImpact: {
+      en: 'Cookies with overly broad domain or path scope can be sent to unintended subdomains or paths, potentially leaking session tokens or user data to other applications on the same domain.',
+      'zh-TW':
+        'Cookie 的 domain 或 path 範圍過於寬鬆，可能被發送到非預期的子網域或路徑，導致 session token 或使用者資料洩漏給同網域的其他應用程式。',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: {
+      en: '1-2 hours',
+      'zh-TW': '1-2 小時',
+    },
+    expectedOutcome: {
+      en: 'Cookies are scoped to the minimum necessary domain and path, reducing the attack surface for cookie theft or session hijacking across subdomains.',
+      'zh-TW':
+        '將 Cookie 限縮至最小必要的 domain 和 path，降低跨子網域的 Cookie 竊取或 session 劫持攻擊面。',
+    },
+  },
+  'SEC-RESOURCES-SRI': {
     businessImpact: {
       en: 'Subresource integrity missing: Third-party scripts could be tampered with to inject malicious code',
       'zh-TW': '缺少子資源完整性驗證：第三方程式可能被竄改並注入惡意程式碼',
@@ -176,7 +145,7 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
       'zh-TW': '驗證外部程式的完整性，防止供應鏈攻擊',
     },
   },
-  'ZAP-10017': {
+  'SEC-RESOURCES-XDOMAIN': {
     businessImpact: {
       en: 'Cross-domain JavaScript files could be compromised, injecting malicious code into your site',
       'zh-TW': '來自其他網域的 JavaScript 檔案可能被入侵，把惡意程式碼注入您的網站',
@@ -188,7 +157,19 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
       'zh-TW': '控管 JavaScript 來源，縮小被攻擊的範圍',
     },
   },
-  'ZAP-10096': {
+  'SEC-RESOURCES-VULNLIB': {
+    businessImpact: {
+      en: 'Known vulnerabilities in JavaScript libraries can be exploited by attackers to compromise user sessions or steal data',
+      'zh-TW': 'JavaScript 函式庫存在已知漏洞，可被攻擊者利用來劫持使用者會話或竊取資料',
+    },
+    fixDifficulty: 'Medium',
+    estimatedEffort: { en: '2-8 hours', 'zh-TW': '2-8 小時' },
+    expectedOutcome: {
+      en: 'Up-to-date libraries without known security vulnerabilities',
+      'zh-TW': '更新函式庫至無已知安全漏洞的版本',
+    },
+  },
+  'SEC-INFO-TIMESTAMP': {
     businessImpact: {
       en: 'Timestamp disclosure may reveal server information useful for targeted attacks',
       'zh-TW': '時間戳記外洩可能暴露伺服器資訊，讓駭客更容易發動針對性攻擊',
@@ -198,6 +179,122 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
     expectedOutcome: {
       en: 'Reduced information leakage to potential attackers',
       'zh-TW': '減少資訊外洩給潛在攻擊者',
+    },
+  },
+  'SEC-HEADERS-RP': {
+    businessImpact: {
+      en: 'Missing Referrer-Policy: The browser may send full URLs (including query parameters with sensitive data) as referrers to third-party sites',
+      'zh-TW':
+        '缺少 Referrer-Policy：瀏覽器可能將完整 URL（包含敏感查詢參數）作為來源資訊發送給第三方網站',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Controlled referrer information prevents leaking sensitive URL parameters to third parties',
+      'zh-TW': '控制來源資訊的傳遞，防止敏感 URL 參數外洩給第三方',
+    },
+  },
+  'SEC-HEADERS-CORS': {
+    businessImpact: {
+      en: 'Overly permissive CORS: Any website can make cross-origin requests to this site, potentially exposing sensitive API data or enabling unauthorized actions',
+      'zh-TW':
+        '過度寬鬆的 CORS 設定：任何網站都可以對此網站發送跨來源請求，可能暴露敏感 API 資料或允許未授權操作',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
+    expectedOutcome: {
+      en: 'CORS restricted to trusted origins only, preventing unauthorized cross-origin access',
+      'zh-TW': 'CORS 限制為僅允許受信任的來源，防止未授權的跨來源存取',
+    },
+  },
+  'SEC-COOKIES-SECURE': {
+    businessImpact: {
+      en: 'Cookies without Secure flag on HTTPS sites may be transmitted over unencrypted HTTP, exposing session tokens to network eavesdropping',
+      'zh-TW':
+        'HTTPS 網站的 Cookie 缺少 Secure 標記，可能透過未加密的 HTTP 傳輸，讓 session token 暴露於網路竊聽風險中',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Cookies only transmitted over encrypted HTTPS connections, preventing session hijacking via network sniffing',
+      'zh-TW': 'Cookie 僅透過加密的 HTTPS 連線傳輸，防止透過網路嗅探劫持 session',
+    },
+  },
+  'SEC-COOKIES-HTTPONLY': {
+    businessImpact: {
+      en: 'Cookies without HttpOnly flag are accessible to JavaScript, allowing XSS attacks to steal session tokens directly',
+      'zh-TW':
+        '缺少 HttpOnly 標記的 Cookie 可被 JavaScript 存取，讓 XSS 攻擊可直接竊取 session token',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Session cookies inaccessible to JavaScript, reducing XSS attack impact',
+      'zh-TW': 'Session Cookie 無法被 JavaScript 存取，降低 XSS 攻擊的影響',
+    },
+  },
+  'SEC-COOKIES-SAMESITE': {
+    businessImpact: {
+      en: 'Cookies without SameSite attribute are sent with cross-site requests, enabling cross-site request forgery (CSRF) attacks',
+      'zh-TW':
+        '缺少 SameSite 屬性的 Cookie 會隨跨站請求發送，使網站容易遭受跨站請求偽造（CSRF）攻擊',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Cookies restricted to same-site context, preventing CSRF attacks',
+      'zh-TW': 'Cookie 限制在同站上下文中，防止 CSRF 攻擊',
+    },
+  },
+  'SEC-INFO-SERVER': {
+    businessImpact: {
+      en: 'Server header reveals version information, helping attackers identify known vulnerabilities for the specific server software and version',
+      'zh-TW': 'Server 標頭揭露版本資訊，幫助攻擊者辨識特定伺服器軟體和版本的已知漏洞',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Server version information hidden, making it harder for attackers to target known vulnerabilities',
+      'zh-TW': '隱藏伺服器版本資訊，讓攻擊者更難針對已知漏洞發動攻擊',
+    },
+  },
+  'SEC-HEADERS-COOP': {
+    businessImpact: {
+      en: 'Without Cross-Origin-Opener-Policy, the page window may be accessible from cross-origin documents, potentially enabling Spectre-like side-channel attacks',
+      'zh-TW':
+        '缺少 Cross-Origin-Opener-Policy，頁面視窗可能被跨來源文件存取，可能遭受類似 Spectre 的旁路攻擊',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Browsing context isolated from cross-origin documents, enabling advanced security features',
+      'zh-TW': '瀏覽上下文與跨來源文件隔離，啟用進階安全功能',
+    },
+  },
+  'SEC-HEADERS-COEP': {
+    businessImpact: {
+      en: 'Without Cross-Origin-Embedder-Policy, the page cannot use cross-origin isolation features like SharedArrayBuffer securely',
+      'zh-TW':
+        '缺少 Cross-Origin-Embedder-Policy，頁面無法安全使用 SharedArrayBuffer 等跨來源隔離功能',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '1-2 hours', 'zh-TW': '1-2 小時' },
+    expectedOutcome: {
+      en: 'Cross-origin isolation enabled, allowing secure use of advanced browser features',
+      'zh-TW': '啟用跨來源隔離，允許安全使用進階瀏覽器功能',
+    },
+  },
+  'SEC-HEADERS-CORP': {
+    businessImpact: {
+      en: "Without Cross-Origin-Resource-Policy, the site's resources can be loaded by any cross-origin page, potentially enabling data leaks via side-channel attacks",
+      'zh-TW':
+        '缺少 Cross-Origin-Resource-Policy，網站資源可被任何跨來源頁面載入，可能透過旁路攻擊洩漏資料',
+    },
+    fixDifficulty: 'Low',
+    estimatedEffort: { en: '30 minutes - 1 hour', 'zh-TW': '30 分鐘 - 1 小時' },
+    expectedOutcome: {
+      en: 'Resources protected from unauthorized cross-origin loading, preventing data exfiltration',
+      'zh-TW': '資源受到保護，防止未授權的跨來源載入和資料外洩',
     },
   },
 
@@ -217,9 +314,9 @@ export const KNOWLEDGE_BASE: Record<string, KnowledgeEntry> = {
   },
   'LCP-CRITICAL': {
     businessImpact: {
-      en: 'Severe user loss: Pages with LCP over 4s see more than 50% of users leave immediately, causing significant revenue loss',
+      en: 'Severe user loss: Pages with LCP over 4s see a large proportion of users abandon the page, causing significant revenue loss',
       'zh-TW':
-        '使用者大量流失：LCP 超過 4 秒的頁面，超過一半的使用者會立即離開，造成嚴重的營收損失',
+        '使用者大量流失：LCP 超過 4 秒的頁面，大量使用者會放棄等待並離開，造成嚴重的營收損失',
     },
     fixDifficulty: 'High',
     estimatedEffort: { en: '1-3 days', 'zh-TW': '1-3 天' },

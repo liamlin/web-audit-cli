@@ -12,8 +12,10 @@ export interface TranslationStrings {
   // Report sections
   'report.title': string;
   'report.generatedOn': string;
-  'report.healthScore': string;
   'report.executiveSummary': string;
+  'report.checksPassed': string;
+  'report.issuesFound': string;
+  'report.whatsWorking': string;
   'report.priorityActions': string;
   'report.priorityActionsDesc': string;
   'report.detailedAnalysis': string;
@@ -64,6 +66,11 @@ export interface TranslationStrings {
   'testSpec.desktop': string;
   'testSpec.mobile4g': string;
 
+  // Module notices
+  'notice.title': string;
+  'notice.skipped': string;
+  'notice.failed': string;
+
   // Navigation hints (slide mode)
   'nav.hint': string;
 }
@@ -76,12 +83,14 @@ export const translations: Record<Locale, TranslationStrings> = {
     // Report sections
     'report.title': '網站審計報告',
     'report.generatedOn': '報告產生時間',
-    'report.healthScore': '健康分數',
     'report.executiveSummary': '執行摘要',
+    'report.checksPassed': '通過檢查',
+    'report.issuesFound': '發現問題',
+    'report.whatsWorking': '表現良好的項目',
     'report.priorityActions': '優先處理事項',
     'report.priorityActionsDesc': '以下事項依照業務影響和修復難度進行優先排序：',
     'report.detailedAnalysis': '詳細問題分析',
-    'report.detailedAnalysisDesc': '發現 {{count}} 個問題。問題依嚴重程度和業務影響排序。',
+    'report.detailedAnalysisDesc': '發現 {{count}} 個問題。問題依嚴重程度排序。',
     'report.noIssues': '未發現問題！',
     'report.noIssuesDesc': '您的網站通過了所有審計檢查。',
     'report.issueSummary': '問題統計',
@@ -90,7 +99,7 @@ export const translations: Record<Locale, TranslationStrings> = {
     // Methodology section
     'methodology.title': '審計方法論',
     'methodology.toolsTitle': '使用工具',
-    'methodology.toolsDesc': '本次審計使用業界標準的開源工具，這些工具獲得全球網頁開發社群的認可：',
+    'methodology.toolsDesc': '本次審計使用業界標準及基於標準的開源工具：',
     'methodology.testsTitle': '執行測試',
     'methodology.testConditions': '效能測試條件',
     'methodology.testConditionsNote': '測試結果可能因網路和設備條件不同而有所差異。',
@@ -128,6 +137,11 @@ export const translations: Record<Locale, TranslationStrings> = {
     'testSpec.desktop': '桌面版，無節流',
     'testSpec.mobile4g': '行動版 4G，已節流',
 
+    // Module notices
+    'notice.title': '注意事項',
+    'notice.skipped': '已跳過',
+    'notice.failed': '執行失敗',
+
     // Navigation hints (slide mode)
     'nav.hint': '使用 ↑↓ 方向鍵或滾動瀏覽',
   },
@@ -136,14 +150,16 @@ export const translations: Record<Locale, TranslationStrings> = {
     // Report sections
     'report.title': 'Web Audit Report',
     'report.generatedOn': 'Generated on',
-    'report.healthScore': 'Health Score',
     'report.executiveSummary': 'Executive Summary',
+    'report.checksPassed': 'Checks Passed',
+    'report.issuesFound': 'Issues Found',
+    'report.whatsWorking': "What's Working",
     'report.priorityActions': 'Priority Actions',
     'report.priorityActionsDesc':
       'The following actions are prioritized based on business impact and implementation effort:',
     'report.detailedAnalysis': 'Detailed Issue Analysis',
     'report.detailedAnalysisDesc':
-      'Found {{count}} issues across all categories. Issues are sorted by severity and business impact.',
+      'Found {{count}} issues across all categories. Issues are sorted by severity.',
     'report.noIssues': 'No issues found!',
     'report.noIssuesDesc': 'Your website passed all audit checks.',
     'report.issueSummary': 'Issue Summary',
@@ -153,7 +169,7 @@ export const translations: Record<Locale, TranslationStrings> = {
     'methodology.title': 'Audit Methodology',
     'methodology.toolsTitle': 'Tools Used',
     'methodology.toolsDesc':
-      'This audit was conducted using industry-standard, open-source tools recognized by the global web development community:',
+      'This audit was conducted using industry-standard and standards-based open-source tools:',
     'methodology.testsTitle': 'Tests Performed',
     'methodology.testConditions': 'Performance Test Conditions',
     'methodology.testConditionsNote':
@@ -191,6 +207,11 @@ export const translations: Record<Locale, TranslationStrings> = {
     // Performance test specs
     'testSpec.desktop': 'Desktop, No Throttling',
     'testSpec.mobile4g': 'Mobile 4G, Throttled',
+
+    // Module notices
+    'notice.title': 'Important Notices',
+    'notice.skipped': 'Skipped',
+    'notice.failed': 'Failed',
 
     // Navigation hints (slide mode)
     'nav.hint': 'Use ↑↓ arrows or scroll to navigate',

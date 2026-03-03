@@ -45,10 +45,10 @@ const createConfig = (overrides: Partial<CliConfig> = {}): CliConfig => ({
   format: ['json'],
   crawlDepth: 5,
   timeout: 60,
-  securityScanMode: 'passive',
   performanceMode: 'desktop',
   language: 'en',
   verbose: false,
+  parallel: false,
   ...overrides,
 });
 
@@ -717,7 +717,6 @@ describe('SeoAuditor Integration Tests', () => {
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
       expect(result.data!.issues).toHaveLength(0);
-      expect(result.data!.score).toBe(100);
       expect(result.data!.status).toBe('success');
     });
   });
