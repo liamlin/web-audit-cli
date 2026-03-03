@@ -1,6 +1,6 @@
 {
   "name": "web-audit-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A comprehensive CLI tool, web service, and desktop app for website SEO, performance, and security auditing",
   "type": "module",
   "bin": {
