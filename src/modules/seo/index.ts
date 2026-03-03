@@ -4,7 +4,10 @@
  * Uses Google Lighthouse SEO audits for authoritative SEO checks.
  */
 
-import { CheerioCrawler, type CheerioCrawlingContext } from 'crawlee';
+import { CheerioCrawler, Configuration, type CheerioCrawlingContext } from 'crawlee';
+import { rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { type Result as LighthouseResult } from 'lighthouse';
 import {
   AuditCategory,
@@ -28,60 +31,17 @@ import { validateSitemap } from './sitemap-validator.js';
  * Lighthouse SEO audit mapping to our issue IDs and severities.
  * Severities are based on Lighthouse scoring weights and SEO impact.
  */
-const LIGHTHOUSE_SEO_AUDITS: Record<
-  string,
-  { id: string; severity: AuditSeverity; title: string }
-> = {
-  'is-crawlable': {
-    id: 'LH-NOT-CRAWLABLE',
-    severity: AuditSeverity.CRITICAL,
-    title: 'Page is not crawlable',
-  },
-  'document-title': {
-    id: 'LH-MISSING-TITLE',
-    severity: AuditSeverity.HIGH,
-    title: 'Document does not have a <title> element',
-  },
-  'http-status-code': {
-    id: 'LH-HTTP-ERROR',
-    severity: AuditSeverity.HIGH,
-    title: 'Page has unsuccessful HTTP status code',
-  },
-  'robots-txt': {
-    id: 'LH-ROBOTS-TXT-INVALID',
-    severity: AuditSeverity.MEDIUM,
-    title: 'robots.txt is not valid',
-  },
-  'meta-description': {
-    id: 'LH-MISSING-META-DESC',
-    severity: AuditSeverity.MEDIUM,
-    title: 'Document does not have a meta description',
-  },
-  canonical: {
-    id: 'LH-INVALID-CANONICAL',
-    severity: AuditSeverity.MEDIUM,
-    title: 'Document does not have a valid rel=canonical',
-  },
-  'link-text': {
-    id: 'LH-POOR-LINK-TEXT',
-    severity: AuditSeverity.LOW,
-    title: 'Links do not have descriptive text',
-  },
-  'crawlable-anchors': {
-    id: 'LH-UNCRAWLABLE-LINKS',
-    severity: AuditSeverity.LOW,
-    title: 'Links are not crawlable',
-  },
-  'image-alt': {
-    id: 'LH-MISSING-IMAGE-ALT',
-    severity: AuditSeverity.LOW,
-    title: 'Image elements do not have [alt] attributes',
-  },
-  hreflang: {
-    id: 'LH-INVALID-HREFLANG',
-    severity: AuditSeverity.LOW,
-    title: 'Document does not have a valid hreflang',
-  },
+const LIGHTHOUSE_SEO_AUDITS: Record<string, { id: string; severity: AuditSeverity }> = {
+  'is-crawlable': { id: 'LH-NOT-CRAWLABLE', severity: AuditSeverity.CRITICAL },
+  'document-title': { id: 'LH-MISSING-TITLE', severity: AuditSeverity.HIGH },
+  'http-status-code': { id: 'LH-HTTP-ERROR', severity: AuditSeverity.HIGH },
+  'robots-txt': { id: 'LH-ROBOTS-TXT-INVALID', severity: AuditSeverity.MEDIUM },
+  'meta-description': { id: 'LH-MISSING-META-DESC', severity: AuditSeverity.MEDIUM },
+  canonical: { id: 'LH-INVALID-CANONICAL', severity: AuditSeverity.MEDIUM },
+  'link-text': { id: 'LH-POOR-LINK-TEXT', severity: AuditSeverity.LOW },
+  'crawlable-anchors': { id: 'LH-UNCRAWLABLE-LINKS', severity: AuditSeverity.LOW },
+  'image-alt': { id: 'LH-MISSING-IMAGE-ALT', severity: AuditSeverity.LOW },
+  hreflang: { id: 'LH-INVALID-HREFLANG', severity: AuditSeverity.LOW },
 };
 
 /**
@@ -132,13 +92,24 @@ export class SeoAuditor extends BaseAuditor {
         });
       }
 
-      // Determine result status
-      const status: 'success' | 'partial' | 'failed' =
-        this.warnings.length > 0 && this.crawledUrls.size > 0
-          ? 'partial'
-          : this.crawledUrls.size > 0
-            ? 'success'
-            : 'failed';
+      // Determine result status based on ALL sub-checks, not just Crawlee.
+      // The SEO module has three independent sub-checks:
+      //   1. Lighthouse SEO audits
+      //   2. Sitemap validation
+      //   3. Crawlee broken-link crawling
+      // Status should reflect the combined outcome.
+      const hasAnyResults = this.issues.length > 0 || allPasses.length > 0;
+      const crawleeRan = this.crawledUrls.size > 0;
+
+      let status: 'success' | 'partial' | 'failed';
+      if (crawleeRan && this.warnings.length === 0) {
+        status = 'success';
+      } else if (hasAnyResults) {
+        // Lighthouse/sitemap produced results even if Crawlee failed
+        status = 'partial';
+      } else {
+        status = 'failed';
+      }
 
       const result: AuditResult = {
         url,
@@ -155,7 +126,7 @@ export class SeoAuditor extends BaseAuditor {
       };
 
       if (status === 'failed') {
-        result.errorMessage = 'No pages could be crawled';
+        result.errorMessage = 'No SEO checks could be completed';
       }
 
       return result;
@@ -225,18 +196,33 @@ export class SeoAuditor extends BaseAuditor {
       const extractedIssues = this.extractLighthouseSeoIssues(lhr, url);
       issues.push(...extractedIssues);
 
-      // Extract passing audits from Lighthouse
+      // Extract passing audits from Lighthouse.
+      // Use audit.title from the LHR (Lighthouse sets it to the pass-oriented title when score=1).
+      // Skip audits where score=1 but scoreDisplayMode is 'notApplicable' (not relevant to this page)
+      // or where the audit had nothing to check (vacuous pass — e.g. hreflang score=1 with no tags).
       const audits = lhr.audits;
       for (const [auditId, config] of Object.entries(LIGHTHOUSE_SEO_AUDITS)) {
         const audit = audits[auditId];
-        if (audit && audit.score === 1) {
-          passes.push({
-            id: config.id,
-            title: config.title,
-            category: AuditCategory.SEO,
-            source: 'Google Lighthouse',
-          });
+        if (!audit || audit.score !== 1) {
+          continue;
         }
+        if (audit.scoreDisplayMode === 'notApplicable') {
+          continue;
+        }
+
+        // Filter vacuous passes: audits that validate existing elements but found none to check.
+        // These return score=1 with an empty details table — not a meaningful pass.
+        const details = audit.details as { items?: unknown[] } | undefined;
+        if (details?.items !== undefined && details.items.length === 0) {
+          continue;
+        }
+
+        passes.push({
+          id: config.id,
+          title: audit.title ?? auditId,
+          category: AuditCategory.SEO,
+          source: 'Google Lighthouse',
+        });
       }
 
       logDebug(`Lighthouse SEO audits found ${issues.length} issues, ${passes.length} passes`);
@@ -271,13 +257,14 @@ export class SeoAuditor extends BaseAuditor {
         continue;
       }
 
+      const auditTitle = audit.title ?? auditId;
       issues.push(
         this.createIssue({
           id: config.id,
-          title: config.title,
-          description: audit.description ?? audit.title ?? config.title,
+          title: auditTitle,
+          description: audit.description ?? auditTitle,
           severity: config.severity,
-          suggestion: audit.description ?? `Fix the ${config.title.toLowerCase()} issue`,
+          suggestion: audit.description ?? `Fix the ${auditTitle.toLowerCase()} issue`,
           affectedUrl: url,
           rawValue: {
             lighthouseAuditId: auditId,
@@ -375,25 +362,43 @@ export class SeoAuditor extends BaseAuditor {
    * Run Crawlee for broken link detection.
    */
   private async runCrawleeBrokenLinkCheck(url: string, baseUrl: URL): Promise<void> {
-    const crawler = new CheerioCrawler({
-      maxRequestsPerCrawl: this.config.crawlDepth,
-      maxConcurrency: 5,
-      requestHandlerTimeoutSecs: 30,
-
-      requestHandler: async (context) => {
-        await this.handleRequest(context, baseUrl);
-      },
-
-      failedRequestHandler: async ({ request }) => {
-        this.handleFailedRequest(request.url, request.errorMessages);
+    // Use a dedicated Configuration with temp storage so Crawlee works inside
+    // ASAR-packed Electron apps where the default ./storage directory is read-only.
+    const storageDir = join(tmpdir(), `web-audit-crawlee-${Date.now()}`);
+    const config = new Configuration({
+      storageClientOptions: {
+        localDataDirectory: storageDir,
       },
     });
+
+    const crawler = new CheerioCrawler(
+      {
+        maxRequestsPerCrawl: this.config.crawlDepth,
+        maxConcurrency: 5,
+        requestHandlerTimeoutSecs: 30,
+
+        requestHandler: async (context) => {
+          await this.handleRequest(context, baseUrl);
+        },
+
+        failedRequestHandler: async ({ request }) => {
+          this.handleFailedRequest(request.url, request.errorMessages);
+        },
+      },
+      config
+    );
 
     try {
       await crawler.run([url]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown crawl error';
       this.warnings.push(`Crawl error: ${message}`);
+    } finally {
+      try {
+        rmSync(storageDir, { recursive: true, force: true });
+      } catch {
+        /* best-effort */
+      }
     }
   }
 

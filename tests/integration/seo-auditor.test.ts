@@ -10,6 +10,7 @@ import { AuditCategory, AuditSeverity, type CliConfig } from '../../src/types/in
 vi.mock('crawlee', () => {
   return {
     CheerioCrawler: vi.fn(),
+    Configuration: vi.fn(),
   };
 });
 

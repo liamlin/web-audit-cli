@@ -176,6 +176,33 @@ npm run pack:win     # Windows .exe installer
 npm run pack:linux   # Linux AppImage
 ```
 
+### macOS Gatekeeper
+
+Since the app is not signed with an Apple Developer certificate, macOS will block it on first launch. Use one of these methods to open it:
+
+**Option A — System Settings**
+
+1. Double-click **Web Audit.app** — macOS will block it
+2. Open **System Settings → Privacy & Security**
+3. Scroll to the **Security** section
+4. Find _"Web Audit" was blocked to protect your Mac_ and click **Open Anyway**
+
+**Option B — Terminal**
+
+Remove the quarantine attribute before opening:
+
+```bash
+xattr -cr /Applications/Web\ Audit.app
+```
+
+Or if running from the build output directory:
+
+```bash
+xattr -cr dist/mac-arm64/Web\ Audit.app
+```
+
+After either method, subsequent launches will work without intervention.
+
 ### Notes
 
 - **Chrome/Chromium required**: The desktop app runs audit engines that call Chrome directly on the host machine.

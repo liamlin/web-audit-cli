@@ -26,4 +26,3 @@ asarUnpack:
   - dist/modules/reporter/templates/**
   - dist/web/public/**
   - node_modules/puppeteer*/**
-  - node_modules/chrome-launcher/**

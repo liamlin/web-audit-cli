@@ -126,13 +126,23 @@ export class SecurityScanner {
       }
     }
 
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(30_000),
-      headers: {
-        'User-Agent': 'WebAuditCLI/1.0 (Security Scanner)',
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(30_000),
+        headers: {
+          'User-Agent': 'WebAuditCLI/1.0 (Security Scanner)',
+        },
+      });
+    } catch (fetchError: unknown) {
+      // Surface the root cause (e.g. DNS ENOTFOUND) instead of generic "fetch failed"
+      const cause =
+        fetchError instanceof Error ? (fetchError.cause as Error | undefined) : undefined;
+      const rootMessage =
+        cause?.message ?? (fetchError instanceof Error ? fetchError.message : 'fetch failed');
+      throw new Error(`Could not connect to ${url}: ${rootMessage}`);
+    }
 
     // Validate final URL after redirects to prevent SSRF via open redirects
     const finalUrl = response.url;
